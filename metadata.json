@@ -1,0 +1,10 @@
+{
+  "name": "Zoya AI Assistant",
+  "description": "Futuristic Android mobile voice agent featuring Zoya — an intelligent, sassy, and witty AI companion with Gemini Live voice, Android app automation, explicit permission consent, and multilingual Bengali/Hinglish support.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
