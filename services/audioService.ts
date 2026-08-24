@@ -10,6 +10,11 @@ class AudioService {
   private isSpeakingSimulated: boolean = false;
   private speechFreqModifier: number = 0;
   private animInterval: number | null = null;
+  private externalFrequencyProvider?: () => Uint8Array;
+
+  public setExternalFrequencyProvider(provider: () => Uint8Array) {
+    this.externalFrequencyProvider = provider;
+  }
 
   public init(): AudioContext {
     if (!this.ctx) {
@@ -65,6 +70,22 @@ class AudioService {
   }
 
   public getFrequencyData(): Uint8Array {
+    if (this.externalFrequencyProvider) {
+      const ext = this.externalFrequencyProvider();
+      if (ext && ext.length > 0) {
+        let hasSignal = false;
+        for (let i = 0; i < Math.min(ext.length, 32); i++) {
+          if (ext[i] > 5) {
+            hasSignal = true;
+            break;
+          }
+        }
+        if (hasSignal) {
+          return ext;
+        }
+      }
+    }
+
     if (!this.analyser) return new Uint8Array(128);
     const data = new Uint8Array(this.analyser.frequencyBinCount);
     this.analyser.getByteFrequencyData(data);

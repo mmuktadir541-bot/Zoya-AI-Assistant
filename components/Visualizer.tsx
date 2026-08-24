@@ -6,17 +6,19 @@ interface VisualizerProps {
   state: AssistantState;
   theme?: VisualizerTheme;
   interactive?: boolean;
+  isPowerSaving?: boolean;
 }
 
 export const Visualizer: React.FC<VisualizerProps> = ({
   state,
   theme = 'gemini_glow',
   interactive = true,
+  isPowerSaving = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const animFrameIdRef = useRef<number | null>(null);
-  const mousePosRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
+  const lastRenderTimeRef = useRef<number>(0);
 
   // Theme color palettes
   const getThemePalettes = (t: VisualizerTheme) => {
@@ -87,8 +89,8 @@ export const Visualizer: React.FC<VisualizerProps> = ({
 
     resizeObserver.observe(container);
 
-    // Dynamic particles
-    const particleCount = 45;
+    // Dynamic particles - reduced significantly in Intelligent Power Mode
+    const particleCount = isPowerSaving ? 6 : 45;
     const particles: Array<{
       x: number;
       y: number;
@@ -105,9 +107,9 @@ export const Visualizer: React.FC<VisualizerProps> = ({
         x: 0,
         y: 0,
         angle: Math.random() * Math.PI * 2,
-        speed: 0.2 + Math.random() * 0.6,
-        radius: 1 + Math.random() * 2.5,
-        opacity: 0.2 + Math.random() * 0.7,
+        speed: (0.2 + Math.random() * 0.6) * (isPowerSaving ? 0.7 : 1),
+        radius: (1 + Math.random() * 2.5) * (isPowerSaving ? 0.8 : 1),
+        opacity: (0.2 + Math.random() * 0.7) * (isPowerSaving ? 0.5 : 1),
         dist: 40 + Math.random() * 120,
         maxDist: 140 + Math.random() * 100,
       });
@@ -115,17 +117,28 @@ export const Visualizer: React.FC<VisualizerProps> = ({
 
     let time = 0;
     let smoothAmplitude = 0;
+    const targetInterval = isPowerSaving ? 1000 / 22 : 1000 / 60; // 22 FPS in Power Mode vs 60 FPS normal
 
-    const render = () => {
-      time += 0.025;
+    const render = (currentTime: number) => {
+      animFrameIdRef.current = requestAnimationFrame(render);
+
+      // Throttling frames during Intelligent Power Mode to conserve GPU/CPU
+      const elapsed = currentTime - lastRenderTimeRef.current;
+      if (elapsed < targetInterval) {
+        return;
+      }
+      lastRenderTimeRef.current = currentTime - (elapsed % targetInterval);
+
+      time += isPowerSaving ? 0.015 : 0.025;
       const freqData = audioService.getFrequencyData();
       
       // Calculate audio power
       let sum = 0;
-      for (let i = 0; i < 32; i++) {
+      const freqSampleCount = isPowerSaving ? 12 : 32;
+      for (let i = 0; i < freqSampleCount; i++) {
         sum += freqData[i] || 0;
       }
-      const rawAmplitude = sum / (32 * 255);
+      const rawAmplitude = sum / (freqSampleCount * 255);
       smoothAmplitude += (rawAmplitude - smoothAmplitude) * 0.2;
 
       // Base boost depending on state
@@ -142,14 +155,16 @@ export const Visualizer: React.FC<VisualizerProps> = ({
       const centerY = height / 2;
       const baseRadius = Math.min(width, height) * 0.22;
 
-      // 1. Draw outer ambient radial glow
+      // 1. Draw outer ambient radial glow (simplified in power mode)
       const outerGlowRadius = baseRadius * (1.8 + stateBoost * 0.6);
       const radialGradient = ctx.createRadialGradient(
         centerX, centerY, baseRadius * 0.3,
         centerX, centerY, outerGlowRadius
       );
       radialGradient.addColorStop(0, colors.glow);
-      radialGradient.addColorStop(0.5, 'rgba(147, 51, 234, 0.12)');
+      if (!isPowerSaving) {
+        radialGradient.addColorStop(0.5, 'rgba(147, 51, 234, 0.12)');
+      }
       radialGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
       
       ctx.fillStyle = radialGradient;
@@ -157,7 +172,7 @@ export const Visualizer: React.FC<VisualizerProps> = ({
       ctx.arc(centerX, centerY, outerGlowRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // 2. Draw Floating Orbiting Particles
+      // 2. Draw Floating Orbiting Particles (reduced overhead)
       ctx.save();
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
@@ -176,9 +191,9 @@ export const Visualizer: React.FC<VisualizerProps> = ({
       }
       ctx.restore();
 
-      // 3. Fluid Siri & Gemini Multi-Wave Layering
-      const numWaves = 4;
-      const points = 64;
+      // 3. Fluid Wave Layering (2 waves in power mode vs 4 in normal mode)
+      const numWaves = isPowerSaving ? 2 : 4;
+      const points = isPowerSaving ? 28 : 64;
 
       for (let w = 0; w < numWaves; w++) {
         ctx.save();
@@ -191,12 +206,12 @@ export const Visualizer: React.FC<VisualizerProps> = ({
 
         for (let i = 0; i <= points; i++) {
           const angle = (i / points) * Math.PI * 2;
-          const freqIndex = Math.floor((i / points) * 24);
+          const freqIndex = Math.floor((i / points) * 16);
           const freqVal = (freqData[freqIndex] || 0) / 255;
 
           // Harmonic distortion
           const harmonic1 = Math.sin(angle * 3 + waveSpeed + waveOffset) * (8 + stateBoost * 24);
-          const harmonic2 = Math.cos(angle * 5 - waveSpeed * 0.8) * (5 + stateBoost * 18);
+          const harmonic2 = isPowerSaving ? 0 : Math.cos(angle * 5 - waveSpeed * 0.8) * (5 + stateBoost * 18);
           const freqDeform = freqVal * (25 * stateBoost);
 
           const r = currentRadius + harmonic1 + harmonic2 + freqDeform;
@@ -267,34 +282,36 @@ export const Visualizer: React.FC<VisualizerProps> = ({
       ctx.beginPath();
       ctx.arc(centerX, centerY, coreRadius, 0, Math.PI * 2);
       ctx.fillStyle = coreGradient;
-      ctx.shadowColor = colors.accent;
-      ctx.shadowBlur = 24 + stateBoost * 30;
+      if (!isPowerSaving) {
+        ctx.shadowColor = colors.accent;
+        ctx.shadowBlur = 24 + stateBoost * 30;
+      }
       ctx.fill();
       ctx.restore();
 
-      // 5. High-tech Orbiting Arc Rings
-      ctx.save();
-      ctx.strokeStyle = colors.accent;
-      ctx.lineWidth = 1.5;
-      ctx.globalAlpha = 0.6 + stateBoost * 0.4;
-      
-      const ringRadius = baseRadius * 1.35;
-      const rotAngle = time * (state === 'thinking' ? 4 : 1.2);
-      
-      // Arc 1
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, ringRadius, rotAngle, rotAngle + Math.PI * 0.6);
-      ctx.stroke();
+      // 5. Orbiting Arc Rings (skipped if power saving to save stroke draws)
+      if (!isPowerSaving) {
+        ctx.save();
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.6 + stateBoost * 0.4;
+        
+        const ringRadius = baseRadius * 1.35;
+        const rotAngle = time * (state === 'thinking' ? 4 : 1.2);
+        
+        // Arc 1
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, ringRadius, rotAngle, rotAngle + Math.PI * 0.6);
+        ctx.stroke();
 
-      // Arc 2
-      ctx.beginPath();
-      ctx.strokeStyle = colors.secondary;
-      ctx.arc(centerX, centerY, ringRadius * 1.15, -rotAngle * 0.8, -rotAngle * 0.8 + Math.PI * 0.45);
-      ctx.stroke();
-      
-      ctx.restore();
-
-      animFrameIdRef.current = requestAnimationFrame(render);
+        // Arc 2
+        ctx.beginPath();
+        ctx.strokeStyle = colors.secondary;
+        ctx.arc(centerX, centerY, ringRadius * 1.15, -rotAngle * 0.8, -rotAngle * 0.8 + Math.PI * 0.45);
+        ctx.stroke();
+        
+        ctx.restore();
+      }
     };
 
     animFrameIdRef.current = requestAnimationFrame(render);
@@ -305,7 +322,7 @@ export const Visualizer: React.FC<VisualizerProps> = ({
         cancelAnimationFrame(animFrameIdRef.current);
       }
     };
-  }, [state, theme]);
+  }, [state, theme, isPowerSaving]);
 
   return (
     <div

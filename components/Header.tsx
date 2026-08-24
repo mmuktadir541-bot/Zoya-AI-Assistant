@@ -10,6 +10,10 @@ import {
   Zap,
   Smartphone,
   Shield,
+  Terminal,
+  Scan,
+  ShieldCheck,
+  Package,
 } from 'lucide-react';
 import { AssistantState, VoiceEngine } from '../types';
 
@@ -24,6 +28,10 @@ interface HeaderProps {
   onToggleChat: () => void;
   onOpenSettings: () => void;
   onRoastCreator: () => void;
+  onOpenTermux: () => void;
+  onOpenScreenReader: () => void;
+  onOpenFirstRunSetup: () => void;
+  onOpenProjectExport: () => void;
   isMuted: boolean;
   onToggleMute: () => void;
   unreadCount: number;
@@ -40,6 +48,10 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleChat,
   onOpenSettings,
   onRoastCreator,
+  onOpenTermux,
+  onOpenScreenReader,
+  onOpenFirstRunSetup,
+  onOpenProjectExport,
   isMuted,
   onToggleMute,
   unreadCount,
@@ -63,7 +75,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header
       id="zoya-header"
-      className="w-full px-3 sm:px-6 py-2.5 flex items-center justify-between z-30 select-none bg-slate-950/70 backdrop-blur-md border-b border-slate-800/60"
+      className="w-full px-3 sm:px-6 py-2.5 flex items-center justify-between z-30 select-none bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80"
     >
       {/* Left: Brand / Title */}
       <div className="flex items-center gap-2.5">
@@ -96,21 +108,68 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Center / Right Controls */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap justify-end">
+        {/* Termux Terminal Runner */}
+        <button
+          id="btn-open-termux"
+          type="button"
+          onClick={onOpenTermux}
+          title="Termux Local Terminal CLI Runner"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-900 transition-all shadow-sm active:scale-95"
+        >
+          <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="hidden md:inline">TERMUX</span>
+        </button>
+
+        {/* Accessibility Screen Reader */}
+        <button
+          id="btn-open-screen-reader"
+          type="button"
+          onClick={onOpenScreenReader}
+          title="Accessibility Screen Text Reader & UI Inspector"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-cyan-950/70 border border-cyan-500/50 text-cyan-300 hover:bg-cyan-900 transition-all shadow-sm active:scale-95"
+        >
+          <Scan className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="hidden md:inline">SCREEN READER</span>
+        </button>
+
+        {/* Permissions & Setup Center */}
+        <button
+          id="btn-open-permissions"
+          type="button"
+          onClick={onOpenFirstRunSetup}
+          title="Android Permissions Setup Center"
+          className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-semibold bg-indigo-950/70 border border-indigo-500/50 text-indigo-300 hover:bg-indigo-900 transition-all shadow-sm active:scale-95"
+        >
+          <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="hidden lg:inline">SETUP</span>
+        </button>
+
+        {/* Android Code & APK Export */}
+        <button
+          id="btn-open-project-export"
+          type="button"
+          onClick={onOpenProjectExport}
+          title="Production Android Kotlin Source & Build Instructions"
+          className="p-1.5 sm:p-2 rounded-xl bg-slate-900/80 border border-slate-700/80 text-indigo-300 hover:text-white hover:border-indigo-500 transition-all"
+        >
+          <Package className="w-3.5 h-3.5" />
+        </button>
+
         {/* Android Apps Drawer Button */}
         <button
           id="btn-toggle-apps"
           type="button"
           onClick={onToggleAppDrawer}
           title="Open Android Apps"
-          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${
+          className={`flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${
             isAppDrawerOpen
               ? 'bg-indigo-950 border-indigo-500 text-indigo-200 shadow-indigo-500/20'
-              : 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-white'
+              : 'bg-slate-900/80 border-slate-700/80 text-slate-300 hover:text-white'
           }`}
         >
           <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
-          <span className="hidden sm:inline font-mono">APPS</span>
+          <span className="hidden lg:inline font-mono">APPS</span>
         </button>
 
         {/* Live Voice vs Standard Switch Button */}
@@ -119,16 +178,16 @@ export const Header: React.FC<HeaderProps> = ({
           type="button"
           onClick={onToggleVoiceEngine}
           title={voiceEngine === 'live' ? 'Switch to Standard Voice' : 'Switch to Real-time Gemini Live Voice'}
-          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${
+          className={`flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${
             voiceEngine === 'live'
               ? isLiveConnected
                 ? 'bg-emerald-950/50 border-emerald-500/50 text-emerald-300 shadow-emerald-500/10 animate-pulse'
                 : 'bg-pink-950/50 border-pink-500/50 text-pink-300 shadow-pink-500/10'
-              : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-white'
+              : 'bg-slate-900/80 border-slate-700/80 text-slate-400 hover:text-white'
           }`}
         >
           <Zap className={`w-3.5 h-3.5 ${voiceEngine === 'live' ? 'text-amber-400 fill-amber-400' : 'text-slate-400'}`} />
-          <span className="hidden sm:inline font-mono tracking-tight">
+          <span className="hidden xl:inline font-mono tracking-tight">
             {voiceEngine === 'live' ? 'LIVE AUDIO' : 'STANDARD'}
           </span>
         </button>
@@ -139,7 +198,7 @@ export const Header: React.FC<HeaderProps> = ({
           type="button"
           onClick={onOpenAudit}
           title="Security & Permission Audit"
-          className="p-1.5 sm:p-2 rounded-xl bg-slate-900/60 border border-slate-700/60 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/40 transition-all"
+          className="p-1.5 sm:p-2 rounded-xl bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/40 transition-all"
         >
           <Shield className="w-3.5 h-3.5 text-cyan-400" />
         </button>
@@ -153,7 +212,7 @@ export const Header: React.FC<HeaderProps> = ({
           className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-amber-500/20 to-rose-500/20 hover:from-amber-500/30 hover:to-rose-500/30 border border-amber-500/30 text-amber-300 hover:text-amber-200 transition-all"
         >
           <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-          <span className="hidden md:inline">Roast</span>
+          <span className="hidden xl:inline">Roast</span>
         </button>
 
         {/* Mute Voice Toggle */}
@@ -165,7 +224,7 @@ export const Header: React.FC<HeaderProps> = ({
           className={`p-1.5 sm:p-2 rounded-xl border transition-all ${
             isMuted
               ? 'bg-rose-950/40 border-rose-500/40 text-rose-300'
-              : 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-white'
+              : 'bg-slate-900/80 border-slate-700/80 text-slate-300 hover:text-white'
           }`}
         >
           {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -177,7 +236,7 @@ export const Header: React.FC<HeaderProps> = ({
           type="button"
           onClick={onToggleChat}
           title="Open Conversation History"
-          className="relative p-1.5 sm:p-2 rounded-xl bg-slate-900/60 border border-slate-700/60 text-slate-300 hover:text-white hover:border-pink-500/40 transition-all"
+          className="relative p-1.5 sm:p-2 rounded-xl bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-white hover:border-pink-500/40 transition-all"
         >
           <MessageSquare className="w-3.5 h-3.5" />
           {unreadCount > 0 && (
@@ -193,7 +252,7 @@ export const Header: React.FC<HeaderProps> = ({
           type="button"
           onClick={onOpenSettings}
           title="Settings"
-          className="p-1.5 sm:p-2 rounded-xl bg-slate-900/60 border border-slate-700/60 text-slate-300 hover:text-white hover:border-slate-500 transition-all"
+          className="p-1.5 sm:p-2 rounded-xl bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-white hover:border-slate-500 transition-all"
         >
           <Settings className="w-3.5 h-3.5" />
         </button>

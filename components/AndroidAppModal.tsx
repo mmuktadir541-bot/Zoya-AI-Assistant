@@ -125,7 +125,9 @@ export const AndroidAppModal: React.FC<AndroidAppModalProps> = ({
   const [smsText, setSmsText] = useState<string>(
     actionPayload?.message || 'Ami 5 minute e ashtesi!'
   );
-  const [smsThread, setSmsThread] = useState(MOCK_DEVICE_DATA.smsThreads[0].messages);
+  const [smsThread, setSmsThread] = useState<any[]>(
+    MOCK_DEVICE_DATA?.smsThreads?.[0]?.messages || []
+  );
 
   // Permissions state in settings
   const [permissions, setPermissions] = useState<AndroidPermissionState[]>(() =>
@@ -215,11 +217,29 @@ export const AndroidAppModal: React.FC<AndroidAppModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (currentApp) {
+                  androidDeviceManager.launchNativeAndroidApp(currentApp);
+                } else {
+                  const resolved = androidDeviceManager.resolveApp(appId);
+                  androidDeviceManager.launchNativeAndroidApp(resolved);
+                }
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white text-[11px] font-bold flex items-center gap-1 shadow-md shadow-pink-600/20 active:scale-95 transition-all"
+              title="আসল ডিভাইসের অ্যাপ চালু করুন"
+            >
+              <ArrowUpRight className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">আসল অ্যাপ খুলুন</span>
+              <span className="sm:hidden">Launch</span>
+            </button>
+
             {onReadAloud && (
               <button
                 type="button"
                 onClick={() => {
-                  const summary = `এখন ${currentApp?.nameBn} খোলা আছে। আপনি এখান থেকে যেকোনো কাজ জয়াকে দিয়ে করিয়ে নিতে পারেন।`;
+                  const summary = `এখন ${currentApp?.nameBn || appId} খোলা আছে। আপনি এখান থেকে যেকোনো কাজ জয়াকে দিয়ে করিয়ে নিতে পারেন।`;
                   onReadAloud(summary);
                 }}
                 className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
@@ -249,7 +269,7 @@ export const AndroidAppModal: React.FC<AndroidAppModalProps> = ({
               <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-900 border border-slate-800">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-sm">
-                    {selectedContact[0]}
+                    {selectedContact ? selectedContact[0] : 'W'}
                   </div>
                   <div>
                     <div className="text-xs font-bold text-white">{selectedContact}</div>
@@ -696,7 +716,7 @@ export const AndroidAppModal: React.FC<AndroidAppModalProps> = ({
               <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-900 border border-slate-800">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
-                    {smsRecipient[0]}
+                    {smsRecipient ? smsRecipient[0] : 'M'}
                   </div>
                   <div>
                     <div className="text-xs font-bold text-white">{smsRecipient}</div>
@@ -825,6 +845,63 @@ export const AndroidAppModal: React.FC<AndroidAppModalProps> = ({
               <div>
                 <h3 className="text-base font-bold text-white">{actionPayload?.query || 'Top Bangla Hits'}</h3>
                 <p className="text-xs text-emerald-400 mt-0.5">Spotify Playing on Android 15</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const q = actionPayload?.query || 'Bangla Hits';
+                  window.open(`https://open.spotify.com/search/${encodeURIComponent(q)}`, '_blank');
+                }}
+                className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-95 transition-all"
+              >
+                <Play className="w-4 h-4 fill-white" />
+                <span>Open in Real Spotify App ↗</span>
+              </button>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* 11. UNIVERSAL GENERIC ANDROID APP FALLBACK (bKash, FB, Nagad, etc.) */}
+          {/* ======================================================== */}
+          {!['whatsapp', 'chrome', 'youtube', 'gmail', 'maps', 'files', 'phone', 'messages', 'settings', 'camera', 'spotify'].includes(appId) && (
+            <div className="flex flex-col items-center justify-between h-full p-4 gap-4 text-center">
+              <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                <div className={`w-24 h-24 rounded-3xl bg-gradient-to-br ${currentApp?.color || 'from-pink-600 to-indigo-700'} flex items-center justify-center text-white font-black text-3xl shadow-2xl shadow-purple-500/20 animate-pulse`}>
+                  {currentApp?.name?.substring(0, 1) || appId.substring(0, 1).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">{currentApp?.nameBn || currentApp?.name || appId}</h3>
+                  <p className="text-xs text-pink-400 mt-0.5 font-mono">Package: {currentApp?.packageName || `com.${appId}`}</p>
+                  <p className="text-xs text-slate-300 mt-2 max-w-sm">
+                    {currentApp?.descriptionBn || `জয়া আপনার ফোন থেকে সরাসরি ${currentApp?.name || appId} অ্যাপ চালু করতে সম্পূর্ণ প্রস্তুত।`}
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 text-[11px] text-slate-300 flex items-center gap-2 text-left w-full max-w-sm">
+                  <Shield className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Android 15 Intent & Accessibility Service Granted</span>
+                </div>
+              </div>
+
+              <div className="w-full flex flex-col gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const app = currentApp || androidDeviceManager.resolveApp(appId);
+                    androidDeviceManager.launchNativeAndroidApp(app);
+                  }}
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-98 transition-all"
+                >
+                  <ArrowUpRight className="w-4 h-4" />
+                  <span>সরাসরি ফোনে আসল অ্যাপ খুলুন (Open Native App) ↗</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition-colors"
+                >
+                  বন্ধ করুন (Close)
+                </button>
               </div>
             </div>
           )}

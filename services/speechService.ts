@@ -7,6 +7,8 @@ export class SpeechService {
   private continuous: boolean = true;
   private currentLanguage: string = 'bn-BD'; // Default Bengali + Hinglish
   private wakeWordRegex = /(hey\s+)?(zoya|জয়া|জোয়া)/i;
+  private silenceTimer: any = null;
+  private lastTranscribedText: string = '';
 
   public onTranscriptChange: ((transcript: string, isFinal: boolean) => void) | null = null;
   public onWakeWordDetected: (() => void) | null = null;
@@ -16,6 +18,12 @@ export class SpeechService {
 
   constructor() {
     this.initRecognition();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        // Pre-warm voices
+        this.getAvailableVoices();
+      };
+    }
   }
 
   public setLanguage(lang: string) {
@@ -47,9 +55,12 @@ export class SpeechService {
         let interimTranscript = '';
         let finalTranscript = '';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
+        if (!event || !event.results) return;
+        for (let i = event.resultIndex || 0; i < event.results.length; ++i) {
+          const resItem = event.results[i];
+          if (!resItem || !resItem[0]) continue;
+          const transcript = resItem[0].transcript || '';
+          if (resItem.isFinal) {
             finalTranscript += transcript;
           } else {
             interimTranscript += transcript;
@@ -57,14 +68,31 @@ export class SpeechService {
         }
 
         const activeText = (finalTranscript || interimTranscript).trim();
+        if (!activeText) return;
+
+        this.lastTranscribedText = activeText;
 
         // Check for wake word
         if (this.wakeWordRegex.test(activeText) && this.onWakeWordDetected) {
           this.onWakeWordDetected();
         }
 
-        if (this.onTranscriptChange && activeText) {
-          this.onTranscriptChange(activeText, !!finalTranscript);
+        if (this.onTranscriptChange) {
+          if (finalTranscript) {
+            if (this.silenceTimer) clearTimeout(this.silenceTimer);
+            this.onTranscriptChange(finalTranscript.trim(), true);
+          } else {
+            this.onTranscriptChange(interimTranscript.trim(), false);
+            // Silence debounce fallback (if isFinal is delayed by browser)
+            if (this.silenceTimer) clearTimeout(this.silenceTimer);
+            this.silenceTimer = setTimeout(() => {
+              if (this.lastTranscribedText && this.isListening) {
+                const textToSubmit = this.lastTranscribedText;
+                this.lastTranscribedText = '';
+                this.onTranscriptChange?.(textToSubmit, true);
+              }
+            }, 1200);
+          }
         }
       };
 
@@ -172,7 +200,7 @@ export class SpeechService {
     );
     if (femaleVoice) return femaleVoice;
 
-    return voices[0];
+    return voices && voices.length > 0 ? voices[0] : null;
   }
 
   public isVoiceConsentApproval(text: string): boolean {
@@ -239,6 +267,8 @@ export class SpeechService {
     if (voice) {
       utterance.voice = voice;
       utterance.lang = voice.lang || this.currentLanguage;
+    } else {
+      utterance.lang = this.currentLanguage || 'bn-BD';
     }
 
     utterance.rate = options.rate ?? 1.05;

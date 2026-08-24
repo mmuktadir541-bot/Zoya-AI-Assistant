@@ -17,6 +17,12 @@ import {
   Mail,
   MessageSquare,
   MapPin,
+  Terminal,
+  Cpu,
+  Scan,
+  MousePointer,
+  AlertTriangle,
+  Layers,
 } from 'lucide-react';
 import { AssistantAction, AndroidPermissionState } from '../types';
 
@@ -39,6 +45,10 @@ export const PermissionConsentModal: React.FC<PermissionConsentModalProps> = ({
 
   const getAppIcon = () => {
     switch (action.targetApp) {
+      case 'termux':
+        return <Terminal className="w-8 h-8 text-emerald-400" />;
+      case 'shizuku':
+        return <Cpu className="w-8 h-8 text-cyan-400" />;
       case 'whatsapp':
         return <MessageCircle className="w-8 h-8 text-emerald-400" />;
       case 'chrome':
@@ -58,21 +68,30 @@ export const PermissionConsentModal: React.FC<PermissionConsentModalProps> = ({
       case 'spotify':
         return <Music className="w-8 h-8 text-emerald-400" />;
       default:
+        if (action.type === 'read_screen') return <Scan className="w-8 h-8 text-cyan-400" />;
+        if (action.type === 'in_app_automate') return <MousePointer className="w-8 h-8 text-pink-400" />;
         return <Smartphone className="w-8 h-8 text-indigo-400" />;
     }
   };
 
+  const isDestructive = action.payload?.dangerLevel === 'destructive';
+  const isPrivileged = action.payload?.dangerLevel === 'privileged';
+
   return (
     <div
       id="modal-permission-consent"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn"
     >
-      <div className="w-full max-w-md bg-slate-900 border border-amber-500/50 rounded-3xl p-6 shadow-2xl shadow-amber-500/10 flex flex-col gap-5 text-slate-200">
+      <div className={`w-full max-w-md bg-slate-900 border ${
+        isDestructive ? 'border-red-500/70 shadow-red-500/20' : isPrivileged ? 'border-amber-500/70 shadow-amber-500/20' : 'border-emerald-500/40 shadow-emerald-500/10'
+      } rounded-3xl p-6 shadow-2xl flex flex-col gap-5 text-slate-200`}>
         {/* Header Badge */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 text-xs font-semibold">
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${
+            isDestructive ? 'bg-red-950/80 border border-red-500/50 text-red-300' : 'bg-amber-950/80 border border-amber-500/40 text-amber-300'
+          } text-xs font-semibold`}>
             <ShieldAlert className="w-3.5 h-3.5" />
-            <span>অ্যান্ড্রয়েড সিকিউরিটি অনুমতি চাই (Permission Required)</span>
+            <span>{isDestructive ? 'ঝুঁকিপূর্ণ অনুমোদন (Destructive Action)' : 'অ্যান্ড্রয়েড সিকিউরিটি অনুমতি চাই'}</span>
           </div>
           <span className="text-[10px] font-mono text-slate-400">Android 15 Guard</span>
         </div>
@@ -98,9 +117,29 @@ export const PermissionConsentModal: React.FC<PermissionConsentModalProps> = ({
         {/* Payload / Details Box */}
         {action.payload && (
           <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 text-xs space-y-2">
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              কাজের বিবরণ (Action Payload):
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>কাজের বিবরণ (Action Payload):</span>
+              {action.payload.dangerLevel && (
+                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+                  {action.payload.dangerLevel}
+                </span>
+              )}
             </div>
+
+            {action.payload.command && (
+              <div className="space-y-1">
+                <span className="text-slate-400 font-mono text-[10px]">Command:</span>
+                <div className="p-2.5 rounded-xl bg-black/80 border border-slate-800 text-emerald-300 font-mono text-xs select-all">
+                  $ {action.payload.command}
+                </div>
+                {action.payload.commandExplanationBn && (
+                  <p className="text-[11px] text-slate-300 italic pt-1">
+                    {action.payload.commandExplanationBn}
+                  </p>
+                )}
+              </div>
+            )}
+
             {action.payload.contactName && (
               <div className="flex items-center justify-between text-slate-300">
                 <span className="text-slate-400">প্রাপক (Contact):</span>
@@ -168,14 +207,17 @@ export const PermissionConsentModal: React.FC<PermissionConsentModalProps> = ({
             id="btn-permission-allow-once"
             type="button"
             onClick={() => onApprove(false)}
-            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition-all shadow-lg shadow-emerald-600/20 active:scale-95"
+            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl ${
+              isDestructive
+                ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/30'
+                : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/20'
+            } text-xs font-bold transition-all shadow-lg active:scale-95`}
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>অনুমতি দিন (Allow Once)</span>
+            <span>অনুমতি দিন (Approve Action)</span>
           </button>
         </div>
       </div>
     </div>
   );
 };
-

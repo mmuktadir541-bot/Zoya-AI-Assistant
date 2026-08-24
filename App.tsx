@@ -15,12 +15,18 @@ import { QuickPrompts } from './components/QuickPrompts';
 import { ChatDrawer } from './components/ChatDrawer';
 import { SettingsModal } from './components/SettingsModal';
 import { RoastModal } from './components/RoastModal';
+import { TermuxRunnerModal } from './components/TermuxRunnerModal';
+import { ScreenReaderModal } from './components/ScreenReaderModal';
+import { FirstRunSetupModal } from './components/FirstRunSetupModal';
+import { AndroidProjectExportModal } from './components/AndroidProjectExportModal';
 import { audioService } from './services/audioService';
 import { speechService } from './services/speechService';
 import { liveVoiceService } from './services/liveService';
 import { ActionParser } from './services/actionParser';
 import { GeminiClient } from './services/geminiClient';
 import { androidDeviceManager } from './services/androidDeviceManager';
+import { powerManager } from './services/powerManager';
+import { Send, Terminal, Scan, Sparkles } from 'lucide-react';
 
 const INITIAL_SETTINGS: VoiceSettings = {
   voiceEngine: 'live',
@@ -35,8 +41,10 @@ const INITIAL_SETTINGS: VoiceSettings = {
   volume: 1.0,
   visualizerTheme: 'gemini_glow',
   autoOpenActions: true,
-  requireExplicitApprovalForApps: true,
+  requireExplicitApprovalForApps: false,
   accessibilityAgentEnabled: true,
+  powerMode: 'auto',
+  lowBatteryThreshold: 20,
 };
 
 export const App: React.FC = () => {
@@ -46,6 +54,7 @@ export const App: React.FC = () => {
   const [activeEmotion, setActiveEmotion] = useState<string>('sassy');
   const [activeAction, setActiveAction] = useState<AssistantAction | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [batteryState, setBatteryState] = useState(() => powerManager.getState());
   
   // Modals and Drawers
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
@@ -53,6 +62,11 @@ export const App: React.FC = () => {
   const [isRoastModalOpen, setIsRoastModalOpen] = useState<boolean>(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState<boolean>(false);
+  const [isTermuxModalOpen, setIsTermuxModalOpen] = useState<boolean>(false);
+  const [termuxInitialCommand, setTermuxInitialCommand] = useState<string>('');
+  const [isScreenReaderModalOpen, setIsScreenReaderModalOpen] = useState<boolean>(false);
+  const [isFirstRunSetupOpen, setIsFirstRunSetupOpen] = useState<boolean>(false);
+  const [isProjectExportOpen, setIsProjectExportOpen] = useState<boolean>(false);
   
   // Android Specific Active Simulation
   const [activeAppWindow, setActiveAppWindow] = useState<AndroidAppId | null>(null);
@@ -73,6 +87,8 @@ export const App: React.FC = () => {
     }
   });
 
+  const [mainInputText, setMainInputText] = useState<string>('');
+
   const stateRef = useRef<AssistantState>('idle');
   stateRef.current = state;
   const settingsRef = useRef<VoiceSettings>(settings);
@@ -82,7 +98,7 @@ export const App: React.FC = () => {
   const pendingActionRef = useRef<AssistantAction | null>(pendingConsentAction);
   pendingActionRef.current = pendingConsentAction;
 
-  // Persist settings
+  // Persist settings & sync with services
   useEffect(() => {
     try {
       localStorage.setItem('zoya_settings', JSON.stringify(settings));
@@ -91,7 +107,21 @@ export const App: React.FC = () => {
     if (settings.language) {
       speechService.setLanguage(settings.language);
     }
+    if (settings.powerMode) {
+      powerManager.setPowerMode(settings.powerMode);
+    }
+    if (settings.lowBatteryThreshold) {
+      powerManager.setLowBatteryThreshold(settings.lowBatteryThreshold);
+    }
   }, [settings]);
+
+  // Subscribe to Battery & Power Manager updates
+  useEffect(() => {
+    const unsub = powerManager.subscribe((st) => {
+      setBatteryState(st);
+    });
+    return unsub;
+  }, []);
 
   // Initial Health Check & Bengali Greeting
   useEffect(() => {
@@ -102,7 +132,7 @@ export const App: React.FC = () => {
     const welcomeMsg: ChatMessage = {
       id: 'msg_welcome',
       sender: 'zoya',
-      text: 'হাই মুকতাদির! আমি জয়া (Zoya), তোমার পার্সোনাল অ্যান্ড্রয়েড মোবাইল এজেন্ট। মাইক্রোফোন চাপো বা বলো—তুমি অনুমতি দিলে আমি যেকোনো অ্যাপ খুলবো আর কাজ করে দেবো!',
+      text: 'হাই মুকতাদির! আমি জয়া (Zoya), তোমার লোকাল অ্যান্ড্রয়েড মোবাইল ও টার্মাক্স অটোমেশন এজেন্ট। মাইক্রোফোনে বলো—"Termux খোলো", "স্ক্রিনে যা আছে পড়ে শোনাও", বা "এই অ্যাপে কাজ করো"—স্পষ্ট অনুমতি পেলে তবেই কাজ করবো!',
       timestamp: Date.now(),
       emotion: 'flirty',
     };
@@ -117,108 +147,114 @@ export const App: React.FC = () => {
   }, [isMuted]);
 
   // Speak function for Standard voice mode
-  const speakText = useCallback((text: string, onFinish?: () => void) => {
-    if (isMutedRef.current || !settingsRef.current.autoSpeak) {
-      if (onFinish) onFinish();
-      return;
-    }
+  const speakText = useCallback(
+    (text: string) => {
+      if (isMutedRef.current || !settingsRef.current.autoSpeak) return;
 
-    setState('speaking');
-    audioService.setSpeakingVisualState(true);
-
-    speechService.speak(text, {
-      rate: settingsRef.current.speechRate,
-      pitch: settingsRef.current.speechPitch,
-      preferredVoice: settingsRef.current.preferredVoice,
-      onStart: () => {
-        setState('speaking');
-        audioService.setSpeakingVisualState(true);
-      },
-      onEnd: () => {
-        audioService.setSpeakingVisualState(false);
-        setState('idle');
-        if (onFinish) onFinish();
-        if (settingsRef.current.continuousListening) {
-          setTimeout(() => {
-            if (stateRef.current === 'idle') {
-              speechService.startListening(true);
-            }
-          }, 400);
+      if (settingsRef.current.voiceEngine === 'live') {
+        if (liveVoiceService.getIsConnected()) {
+          liveVoiceService.sendText(text);
+          return;
         }
-      },
-      onError: () => {
-        audioService.setSpeakingVisualState(false);
-        setState('idle');
-        if (onFinish) onFinish();
-      },
-    });
-  }, []);
-
-  // Action Dispatcher with Android Permission & Consent Checks
-  const dispatchAssistantAction = useCallback(
-    (action: AssistantAction) => {
-      setActiveAction(action);
-
-      // Check permission
-      const check = androidDeviceManager.checkActionPermission(action);
-
-      if (!check.permitted) {
-        // Needs explicit user permission modal
-        setPendingConsentAction(action);
-        audioService.playWakeChime();
-        return;
       }
 
-      // If user enabled mandatory confirmation in settings for sensitive apps
-      if (
-        settingsRef.current.requireExplicitApprovalForApps &&
-        (action.requiresExplicitConsent || action.requiresPermission)
-      ) {
-        setPendingConsentAction(action);
-        audioService.playWakeChime();
-        return;
-      }
+      setState('speaking');
+      audioService.setSpeakingVisualState(true);
 
-      // Allowed directly: execute action
-      executeApprovedAction(action);
+      speechService.speak(text, {
+        rate: settingsRef.current.speechRate,
+        pitch: settingsRef.current.speechPitch,
+        voiceName: settingsRef.current.preferredVoice,
+        onEnd: () => {
+          setState('idle');
+          audioService.setSpeakingVisualState(false);
+        },
+        onError: () => {
+          setState('idle');
+          audioService.setSpeakingVisualState(false);
+        },
+      });
     },
     []
   );
 
   // Execute Approved Action
-  const executeApprovedAction = (action: AssistantAction) => {
-    audioService.playActionCompleteSound();
+  const executeApprovedAction = useCallback((action: AssistantAction) => {
+    setActiveAction(action);
+    setPendingConsentAction(null);
 
-    // Trigger Accessibility visual animation if enabled
+    // Trigger visual accessibility pulse
     if (settingsRef.current.accessibilityAgentEnabled) {
       setAccessibilityTarget(action.titleBn || action.title);
       setIsAccessibilityActive(true);
       setTimeout(() => setIsAccessibilityActive(false), 2400);
     }
 
-    // Open simulated Android App if relevant
-    if (action.targetApp) {
-      setActiveAppWindow(action.targetApp);
-      setIsAppDrawerOpen(false);
+    if (action.type === 'termux_run') {
+      if (action.payload?.command) {
+        setTermuxInitialCommand(action.payload.command);
+      }
+      setIsTermuxModalOpen(true);
+      return;
     }
 
-    // External web fallback if requested
-    if (settingsRef.current.autoOpenActions && action.url) {
+    if (action.type === 'read_screen') {
+      setIsScreenReaderModalOpen(true);
+      return;
+    }
+
+    if (action.type === 'in_app_automate') {
+      setIsScreenReaderModalOpen(true);
+      return;
+    }
+
+    if (action.type === 'read_files' || action.targetApp === 'files') {
+      setActiveAppWindow('files');
+      return;
+    }
+
+    if (action.type === 'shizuku_exec' || action.targetApp === 'shizuku') {
+      setIsFirstRunSetupOpen(true);
+      return;
+    }
+
+    // Launch app window simulation or native intent
+    if (action.targetApp) {
+      if (action.targetApp === 'termux') {
+        setIsTermuxModalOpen(true);
+      } else {
+        setActiveAppWindow(action.targetApp as AndroidAppId);
+      }
       ActionParser.executeAction(action);
     }
+  }, []);
 
-    androidDeviceManager.addAuditLog({
-      actionTitle: action.titleBn || action.title,
-      targetApp: action.targetApp,
-      permissionUsed: action.requiresPermission,
-      status: 'allowed',
-      details: action.payload?.message || action.payload?.query || 'Action executed with consent.',
-    });
-  };
+  // Central Action Dispatcher with Permission Checks
+  const dispatchAssistantAction = useCallback(
+    (action: AssistantAction) => {
+      setActiveAction(action);
 
-  // Handle Consent Modal Approval
-  const handleConsentApprove = (alwaysAllow: boolean = false) => {
+      // Check permissions
+      const permCheck = androidDeviceManager.checkActionPermission(action);
+
+      if (!permCheck.allowed || action.requiresExplicitConsent) {
+        setPendingConsentAction(action);
+        const reason = permCheck.reasonBn || `${action.titleBn || action.title} চালানোর জন্য অনুমতি প্রয়োজন।`;
+        setAssistantText(reason);
+        speakText(reason);
+        return;
+      }
+
+      // Execute Action Immediately
+      executeApprovedAction(action);
+    },
+    [speakText, executeApprovedAction]
+  );
+
+  // User Grants Consent from Modal
+  const handleConsentApprove = useCallback((alwaysAllow: boolean = false) => {
     if (!pendingConsentAction) return;
+
     const action = pendingConsentAction;
     setPendingConsentAction(null);
 
@@ -228,158 +264,115 @@ export const App: React.FC = () => {
 
     executeApprovedAction(action);
 
-    const confText = `অনুমতি দেওয়া হয়েছে: ${action.titleBn || action.title} কাজ শুরু করছি!`;
-    setAssistantText(confText);
-    if (settings.voiceEngine === 'standard') {
-      speakText(confText);
-    }
-  };
+    const approveMsg = `অনুমতি পাওয়া গেছে! ${action.titleBn || action.title} সম্পন্ন করছি।`;
+    setAssistantText(approveMsg);
+    speakText(approveMsg);
+  }, [pendingConsentAction, executeApprovedAction, speakText]);
 
-  // Handle Consent Modal Denial
-  const handleConsentDeny = () => {
+  // User Denies Consent
+  const handleConsentDeny = useCallback(() => {
     if (!pendingConsentAction) return;
     const action = pendingConsentAction;
     setPendingConsentAction(null);
 
     androidDeviceManager.addAuditLog({
-      actionTitle: action.titleBn || action.title,
+      actionTitle: action.title,
       targetApp: action.targetApp,
       permissionUsed: action.requiresPermission,
       status: 'denied',
-      details: 'User declined action permission request.',
+      details: 'User explicitly denied permission in confirmation modal',
     });
 
-    const deniedText = 'ঠিক আছে মুকতাদির, তোমার অনুমতি ছাড়া আমি কোনো কাজ করব না!';
-    setAssistantText(deniedText);
-    if (settings.voiceEngine === 'standard') {
-      speakText(deniedText);
-    }
-  };
+    const denyMsg = `ঠিক আছে, অনুমতি না থাকায় "${action.titleBn || action.title}" কাজটি বাতিল করা হলো।`;
+    setAssistantText(denyMsg);
+    speakText(denyMsg);
+  }, [pendingConsentAction, speakText]);
 
-  // Setup Gemini Live Service Event Handlers
+  // Setup Live Voice Service Event Handlers
   useEffect(() => {
-    liveVoiceService.onStateChange = (liveState) => {
-      if (liveState === 'disconnected') {
-        setIsLiveConnected(false);
-        setState('idle');
-        audioService.setSpeakingVisualState(false);
-      } else if (liveState === 'connecting') {
-        setState('thinking');
-      } else if (liveState === 'connected') {
-        setIsLiveConnected(true);
-        setState('listening');
-      } else if (liveState === 'listening') {
-        setState('listening');
-        audioService.setSpeakingVisualState(false);
-      } else if (liveState === 'speaking') {
-        setState('speaking');
-        audioService.setSpeakingVisualState(true);
-      }
-    };
+    audioService.setExternalFrequencyProvider(() => {
+      const { outputData, inputData } = liveVoiceService.getVisualizerData();
+      let outSum = 0;
+      for (let i = 0; i < 16; i++) outSum += outputData[i] || 0;
+      if (outSum > 15) return outputData;
 
-    liveVoiceService.onInputTranscription = (text) => {
-      setUserTranscript(text);
+      let inSum = 0;
+      for (let i = 0; i < 16; i++) inSum += inputData[i] || 0;
+      if (inSum > 15) return inputData;
 
-      // Check if user is voice-approving/denying pending permission request
-      if (pendingActionRef.current) {
-        if (speechService.isVoiceConsentApproval(text)) {
-          handleConsentApprove(false);
-          return;
+      return outputData;
+    });
+
+    liveVoiceService.callbacks = {
+      onStateChange: (st) => {
+        if (st === 'connecting') {
+          setState('thinking');
+        } else if (st === 'listening') {
+          setIsLiveConnected(true);
+          setState('listening');
+        } else if (st === 'speaking') {
+          setIsLiveConnected(true);
+          setState('speaking');
+        } else if (st === 'disconnected') {
+          setIsLiveConnected(false);
+          setState('idle');
         }
-        if (speechService.isVoiceConsentDenial(text)) {
-          handleConsentDeny();
-          return;
-        }
-      }
-    };
-
-    liveVoiceService.onOutputTranscription = (text) => {
-      setAssistantText(text);
-      setActiveEmotion('sassy');
-    };
-
-    liveVoiceService.onAction = (action) => {
-      dispatchAssistantAction(action);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `act_${Date.now()}`,
-          sender: 'zoya',
-          text: `অ্যান্ড্রয়েড অ্যাকশন: ${action.titleBn || action.title}`,
-          timestamp: Date.now(),
-          action,
-          emotion: 'witty',
-        },
-      ]);
-    };
-
-    liveVoiceService.onTurnComplete = () => {
-      if (assistantText) {
-        setMessages((prev) => {
-          const lastMsg = prev[prev.length - 1];
-          if (lastMsg && lastMsg.text === assistantText) return prev;
-          return [
-            ...prev,
-            {
-              id: `msg_${Date.now()}_z`,
-              sender: 'zoya',
-              text: assistantText,
-              timestamp: Date.now(),
-              emotion: 'sassy',
-            },
-          ];
-        });
-      }
-    };
-
-    liveVoiceService.onError = (err) => {
-      console.warn('Live voice notice:', err);
+      },
+      onInputTranscription: (text) => {
+        setUserTranscript(text);
+      },
+      onOutputTranscription: (text) => {
+        setAssistantText((prev) => (prev ? prev + ' ' + text : text));
+      },
+      onAction: (action) => {
+        dispatchAssistantAction(action);
+      },
+      onError: (err) => {
+        console.warn('Live voice event error:', err);
+      },
+      onTurnComplete: () => {
+        setState('listening');
+      },
     };
 
     return () => {
       liveVoiceService.disconnect();
     };
-  }, [assistantText, dispatchAssistantAction]);
+  }, [dispatchAssistantAction]);
 
-  // Core Command Processing Pipeline for Standard mode / Chat drawer
+  // Core NLP Query Processor
   const processQuery = useCallback(
-    async (queryText: string) => {
-      if (!queryText.trim()) return;
+    async (rawText: string) => {
+      const trimmed = rawText.trim();
+      if (!trimmed) return;
 
-      const trimmed = queryText.trim();
-      setUserTranscript(trimmed);
-
-      // Check voice consent if modal is active
-      if (pendingConsentAction) {
-        if (speechService.isVoiceConsentApproval(trimmed)) {
+      // Handle direct voice consent responses
+      if (pendingActionRef.current) {
+        const lower = trimmed.toLowerCase();
+        if (
+          lower.includes('অনুমতি দিলাম') ||
+          lower.includes('হ্যাঁ') ||
+          lower.includes('allow') ||
+          lower.includes('yes') ||
+          lower.includes('করো') ||
+          lower.includes('approve')
+        ) {
           handleConsentApprove(false);
           return;
         }
-        if (speechService.isVoiceConsentDenial(trimmed)) {
+        if (
+          lower.includes('বাতিল') ||
+          lower.includes('না') ||
+          lower.includes('deny') ||
+          lower.includes('cancel') ||
+          lower.includes('no')
+        ) {
           handleConsentDeny();
           return;
         }
       }
 
-      // If in Live mode and connected, send directly to Live API session
-      if (settingsRef.current.voiceEngine === 'live' && liveVoiceService.getIsConnected()) {
-        liveVoiceService.sendText(trimmed);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `msg_${Date.now()}_u`,
-            sender: 'user',
-            text: trimmed,
-            timestamp: Date.now(),
-          },
-        ]);
-        return;
-      }
-
-      setState('thinking');
-      speechService.stopListening();
-
-      // 1. Add user message to log
+      // Add user message to state
       const userMsg: ChatMessage = {
         id: `msg_${Date.now()}_u`,
         sender: 'user',
@@ -387,8 +380,10 @@ export const App: React.FC = () => {
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, userMsg]);
+      setUserTranscript(trimmed);
+      setState('thinking');
 
-      // 2. Check for instant client-side keyword action routing
+      // Check instant client-side keyword action routing
       const actionResult = ActionParser.parseCommand(trimmed);
 
       let replyText = '';
@@ -401,7 +396,7 @@ export const App: React.FC = () => {
         chosenEmotion = actionResult.emotion || 'witty';
         dispatchAssistantAction(executedAction);
       } else {
-        // 3. Fallback to Gemini 3.7 Flash Backend
+        // Fallback to Gemini 3.7 Flash Backend
         try {
           const response = await GeminiClient.sendMessage(trimmed, messages);
           replyText = response.reply;
@@ -426,11 +421,11 @@ export const App: React.FC = () => {
         }
       }
 
-      // 4. Update UI State with response
+      // Update UI State with response
       setAssistantText(replyText);
       setActiveEmotion(chosenEmotion);
 
-      // 5. Add assistant message to log
+      // Add assistant message to log
       const zoyaMsg: ChatMessage = {
         id: `msg_${Date.now()}_z`,
         sender: 'zoya',
@@ -441,7 +436,7 @@ export const App: React.FC = () => {
       };
       setMessages((prev) => [...prev, zoyaMsg]);
 
-      // 6. Speak the response aloud
+      // Speak the response aloud
       speakText(replyText);
     },
     [messages, speakText, pendingConsentAction, dispatchAssistantAction]
@@ -554,14 +549,23 @@ export const App: React.FC = () => {
 
   // Open App Directly from Drawer
   const handleOpenAppDirectly = (appId: AndroidAppId) => {
+    if (appId === 'termux') {
+      setIsTermuxModalOpen(true);
+      return;
+    }
+    if (appId === 'shizuku') {
+      setIsFirstRunSetupOpen(true);
+      return;
+    }
+
     const targetAction: AssistantAction = {
       id: `manual_${Date.now()}`,
       type: 'open_app',
       title: `Open ${appId}`,
       titleBn: `${appId.toUpperCase()} অ্যাপ খোলা`,
       targetApp: appId,
-      requiresPermission: 'PACKAGE_USAGE_STATS',
-      requiresExplicitConsent: true,
+      requiresPermission: 'BIND_ACCESSIBILITY_SERVICE',
+      requiresExplicitConsent: false,
       executedAt: Date.now(),
     };
     dispatchAssistantAction(targetAction);
@@ -575,7 +579,11 @@ export const App: React.FC = () => {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-600/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Android Device Status Bar */}
-      <DeviceStatusBar state={state} isLiveConnected={isLiveConnected} />
+      <DeviceStatusBar
+        state={state}
+        isLiveConnected={isLiveConnected}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+      />
 
       {/* Header */}
       <Header
@@ -589,6 +597,10 @@ export const App: React.FC = () => {
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onRoastCreator={() => setIsRoastModalOpen(true)}
+        onOpenTermux={() => setIsTermuxModalOpen(true)}
+        onOpenScreenReader={() => setIsScreenReaderModalOpen(true)}
+        onOpenFirstRunSetup={() => setIsFirstRunSetupOpen(true)}
+        onOpenProjectExport={() => setIsProjectExportOpen(true)}
         isMuted={isMuted}
         onToggleMute={() => setIsMuted(!isMuted)}
         unreadCount={messages.length}
@@ -618,13 +630,61 @@ export const App: React.FC = () => {
             />
           </div>
         ) : (
-          <div className="relative w-full max-w-lg h-52 sm:h-72 flex items-center justify-center my-auto">
-            <Visualizer state={state} theme={settings.visualizerTheme} />
+          <div className="relative w-full max-w-lg h-44 sm:h-64 flex flex-col items-center justify-center my-auto">
+            <Visualizer
+              state={state}
+              theme={settings.visualizerTheme}
+              isPowerSaving={batteryState.isPowerSavingActive}
+            />
+
+            {/* Power Saving Active Reassurance Indicator */}
+            {batteryState.isPowerSavingActive && (
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(true)}
+                className="absolute bottom-2 flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/85 backdrop-blur-md border border-amber-500/40 text-[10px] text-amber-300 shadow-lg shadow-black/40 hover:bg-slate-800 transition-colors pointer-events-auto cursor-pointer animate-fadeIn"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                <span className="font-medium">Intelligent Power Mode (22 FPS • Voice Wake 100% Active)</span>
+              </button>
+            )}
           </div>
         )}
 
-        {/* Bottom Section: Central Mic Button & Quick Prompts */}
-        <div className="w-full flex flex-col items-center gap-3 pb-2">
+        {/* Bottom Section: Text Command Input, Central Mic Button & Quick Prompts */}
+        <div className="w-full flex flex-col items-center gap-2.5 pb-2">
+          {/* Quick Natural Language Text Input Box */}
+          <div className="w-full max-w-md flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-800 focus-within:border-indigo-500 shadow-lg">
+            <input
+              id="main-natural-input"
+              type="text"
+              value={mainInputText}
+              onChange={(e) => setMainInputText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && mainInputText.trim()) {
+                  processQuery(mainInputText);
+                  setMainInputText('');
+                }
+              }}
+              placeholder="মুখে বলুন বা লিখুন: 'Termux খোলো', 'স্ক্রিন পড়ো'..."
+              className="flex-1 bg-transparent text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none"
+            />
+            <button
+              id="btn-send-main-input"
+              type="button"
+              disabled={!mainInputText.trim()}
+              onClick={() => {
+                if (mainInputText.trim()) {
+                  processQuery(mainInputText);
+                  setMainInputText('');
+                }
+              }}
+              className="p-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 transition-colors"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           <MicButton
             state={state}
             voiceEngine={settings.voiceEngine}
@@ -665,6 +725,43 @@ export const App: React.FC = () => {
         }
         onApprove={handleConsentApprove}
         onDeny={handleConsentDeny}
+      />
+
+      {/* Termux Terminal Runner Modal */}
+      <TermuxRunnerModal
+        isOpen={isTermuxModalOpen}
+        initialCommand={termuxInitialCommand}
+        onClose={() => setIsTermuxModalOpen(false)}
+        onSpeak={(t) => {
+          setAssistantText(t);
+          speakText(t);
+        }}
+      />
+
+      {/* Accessibility Screen Reader Modal */}
+      <ScreenReaderModal
+        isOpen={isScreenReaderModalOpen}
+        onClose={() => setIsScreenReaderModalOpen(false)}
+        onSpeak={(t) => {
+          setAssistantText(t);
+          speakText(t);
+        }}
+      />
+
+      {/* First-Run Setup & Permissions Center Modal */}
+      <FirstRunSetupModal
+        isOpen={isFirstRunSetupOpen}
+        onClose={() => setIsFirstRunSetupOpen(false)}
+        onSpeak={(t) => {
+          setAssistantText(t);
+          speakText(t);
+        }}
+      />
+
+      {/* Android Project Source Code & Build Instructions Modal */}
+      <AndroidProjectExportModal
+        isOpen={isProjectExportOpen}
+        onClose={() => setIsProjectExportOpen(false)}
       />
 
       {/* Android App Modal (Simulated App Windows) */}

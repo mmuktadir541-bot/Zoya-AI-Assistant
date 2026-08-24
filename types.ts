@@ -7,8 +7,11 @@ export type VoiceEngine = 'live' | 'standard';
 export type AndroidPermissionType =
   | 'RECORD_AUDIO'
   | 'BIND_ACCESSIBILITY_SERVICE'
-  | 'READ_CONTACTS'
+  | 'TERMUX_RUN_COMMAND'
+  | 'SHIZUKU_PERMISSION'
+  | 'SYSTEM_ALERT_WINDOW'
   | 'MANAGE_EXTERNAL_STORAGE'
+  | 'READ_CONTACTS'
   | 'ACCESS_FINE_LOCATION'
   | 'POST_NOTIFICATIONS'
   | 'CALL_PHONE'
@@ -25,7 +28,9 @@ export interface AndroidPermissionState {
   requiredFor: string[];
 }
 
-export type AndroidAppId =
+export type KnownAndroidAppId =
+  | 'termux'
+  | 'shizuku'
   | 'whatsapp'
   | 'chrome'
   | 'youtube'
@@ -37,21 +42,80 @@ export type AndroidAppId =
   | 'settings'
   | 'camera'
   | 'spotify'
-  | 'notes';
+  | 'notes'
+  | 'facebook'
+  | 'messenger'
+  | 'bkash'
+  | 'nagad'
+  | 'instagram'
+  | 'tiktok'
+  | 'telegram'
+  | 'calculator'
+  | 'calendar'
+  | 'clock'
+  | 'playstore'
+  | 'twitter'
+  | 'netflix'
+  | 'daraz'
+  | 'foodpanda'
+  | 'pathao'
+  | 'uber'
+  | 'photos'
+  | 'drive'
+  | 'chatgpt';
+
+export type AndroidAppId = KnownAndroidAppId | (string & {});
 
 export interface AndroidApp {
   id: AndroidAppId;
   name: string;
   nameBn: string;
   icon: string;
-  category: 'communication' | 'media' | 'system' | 'utility' | 'tools';
+  category: 'communication' | 'media' | 'system' | 'utility' | 'tools' | 'finance' | 'social';
   color: string;
   packageName: string;
+  intentUri?: string;
+  deepLink?: string;
+  webFallback?: string;
   requiredPermissions: AndroidPermissionType[];
   descriptionBn: string;
 }
 
-export type WorkType = 'A_APP_CONTROL' | 'B_INFO_SEARCH' | 'C_IN_APP_AUTOMATION' | 'E_FILE_MANAGEMENT';
+export type WorkType =
+  | 'A_APP_CONTROL'
+  | 'B_INFO_SEARCH'
+  | 'C_IN_APP_AUTOMATION'
+  | 'D_TERMUX_COMMAND'
+  | 'E_FILE_MANAGEMENT'
+  | 'F_SCREEN_READER'
+  | 'G_SHIZUKU_PRIVILEGED';
+
+export type CommandDangerLevel = 'safe' | 'moderate' | 'privileged' | 'destructive';
+
+export interface TermuxExecutionRecord {
+  id: string;
+  command: string;
+  explanation: string;
+  explanationBn: string;
+  dangerLevel: CommandDangerLevel;
+  requiresConfirmation: boolean;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  status: 'pending' | 'approved' | 'running' | 'completed' | 'rejected' | 'failed';
+  executedAt: number;
+  durationMs?: number;
+}
+
+export interface ScreenNode {
+  id: string;
+  text: string;
+  contentDescription?: string;
+  className: string;
+  clickable: boolean;
+  bounds: { x: number; y: number; width: number; height: number };
+  focused?: boolean;
+}
 
 export interface AssistantAction {
   id: string;
@@ -59,6 +123,10 @@ export interface AssistantAction {
     | 'open_url'
     | 'open_app'
     | 'close_app'
+    | 'termux_run'
+    | 'read_screen'
+    | 'in_app_automate'
+    | 'shizuku_exec'
     | 'youtube'
     | 'spotify'
     | 'whatsapp'
@@ -70,6 +138,7 @@ export interface AssistantAction {
     | 'search_info'
     | 'google'
     | 'device_control'
+    | 'device_setting'
     | 'roast'
     | 'system';
   workType?: WorkType;
@@ -77,11 +146,20 @@ export interface AssistantAction {
   titleBn?: string;
   url?: string;
   targetApp?: AndroidAppId;
+  packageName?: string;
+  intentUri?: string;
+  deepLink?: string;
   requiresPermission?: AndroidPermissionType;
   requiresExplicitConsent?: boolean;
   isConfirmed?: boolean;
   status?: 'pending' | 'approved' | 'rejected' | 'executed';
   payload?: {
+    command?: string;
+    commandExplanation?: string;
+    commandExplanationBn?: string;
+    dangerLevel?: CommandDangerLevel;
+    screenSummary?: string;
+    automationSteps?: Array<{ step: number; action: string; targetText?: string; delayMs?: number }>;
     query?: string;
     phone?: string;
     message?: string;
@@ -93,6 +171,9 @@ export interface AssistantAction {
     domain?: string;
     appName?: string;
     appId?: AndroidAppId;
+    packageName?: string;
+    intentUri?: string;
+    deepLink?: string;
     path?: string;
     fileType?: string;
     infoSummary?: string;
@@ -131,6 +212,16 @@ export interface ChatMessage {
   isConsentRequest?: boolean;
 }
 
+export type PowerMode = 'auto' | 'always_on' | 'off';
+
+export interface BatteryState {
+  level: number; // 0 - 100
+  isCharging: boolean;
+  isPowerSavingActive: boolean;
+  powerMode: PowerMode;
+  lowBatteryThreshold: number; // e.g. 20
+}
+
 export interface VoiceSettings {
   voiceEngine: VoiceEngine;
   geminiLiveVoice: string; // Aoede, Kore, Zephyr, Puck, Fenrir, Charon
@@ -147,6 +238,10 @@ export interface VoiceSettings {
   approvalMode: 'always_ask' | 'sensitive_only' | 'auto';
   requireExplicitApprovalForApps: boolean;
   accessibilityAgentEnabled: boolean;
+  powerMode: PowerMode;
+  lowBatteryThreshold: number;
+  shizukuEnabled: boolean;
+  termuxAutoConnect: boolean;
 }
 
 export interface ActionParseResult {
@@ -156,4 +251,3 @@ export interface ActionParseResult {
   sassySpokenText: string;
   emotion?: 'sassy' | 'flirty' | 'witty' | 'dramatic' | 'smart' | 'roasting';
 }
-

@@ -1,7 +1,8 @@
-import React from 'react';
-import { X, Volume2, Palette, Sparkles, Radio, Check, Info, Shield, Smartphone, Globe } from 'lucide-react';
-import { VoiceSettings, VisualizerTheme } from '../types';
+import React, { useState, useEffect } from 'react';
+import { X, Volume2, Palette, Sparkles, Radio, Check, Info, Shield, Smartphone, Globe, Battery, BatteryCharging, Leaf, Zap } from 'lucide-react';
+import { VoiceSettings, VisualizerTheme, PowerMode, BatteryState } from '../types';
 import { speechService } from '../services/speechService';
+import { powerManager } from '../services/powerManager';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -20,6 +21,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   hasApiKey,
   onOpenAuditLogs,
 }) => {
+  const [batteryState, setBatteryState] = useState<BatteryState>(powerManager.getState());
+
+  useEffect(() => {
+    const unsub = powerManager.subscribe((st) => setBatteryState(st));
+    return unsub;
+  }, []);
+
   if (!isOpen) return null;
 
   const voices = speechService.getAvailableVoices();
@@ -71,19 +79,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span>Android অনুমতি ও সিকিউরিটি গার্ড (Permission Guard)</span>
             </label>
 
-            {/* Explicit Approval Toggle */}
+            {/* Explicit Approval Toggle / Direct Open */}
             <label className="flex items-center justify-between p-3 rounded-2xl bg-slate-900/80 border border-slate-800 cursor-pointer">
               <div className="space-y-0.5 pr-2">
-                <div className="text-xs font-semibold text-white">অ্যাপ বা মেসেজ পাঠানোর আগে স্পষ্ট অনুমতি চাইবে</div>
+                <div className="text-xs font-semibold text-white">সরাসরি অ্যাপ চালু (Direct Open Mode)</div>
                 <div className="text-[11px] text-slate-400">
-                  Zoya will always show confirmation modal before opening apps or sending messages
+                  {settings.requireExplicitApprovalForApps
+                    ? 'অনুমতি পপ-আপ চালু আছে (Confirmation popups enabled)'
+                    : 'সরাসরি ওপেন মোড সক্রিয়—কোনো অনুমতি পপ-আপ ছাড়াই তৎক্ষণাৎ অ্যাপ চালু হবে (Direct Instant Open)'}
                 </div>
               </div>
               <input
                 type="checkbox"
-                checked={settings.requireExplicitApprovalForApps}
-                onChange={(e) => onUpdateSettings({ requireExplicitApprovalForApps: e.target.checked })}
-                className="w-4 h-4 rounded-md accent-indigo-500 cursor-pointer"
+                checked={!settings.requireExplicitApprovalForApps}
+                onChange={(e) => onUpdateSettings({ requireExplicitApprovalForApps: !e.target.checked })}
+                className="w-4 h-4 rounded-md accent-emerald-500 cursor-pointer"
               />
             </label>
 
@@ -205,6 +215,117 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </select>
               </div>
             )}
+          </div>
+
+          {/* Intelligent Power Mode Section */}
+          <div className="space-y-3 pt-4 border-t border-slate-800/80">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
+                <Battery className="w-4 h-4 text-emerald-400" />
+                <span>ইন্টেলিজেন্ট পাওয়ার সেভিং (Intelligent Power Mode)</span>
+              </label>
+              {batteryState.isPowerSavingActive && (
+                <span className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-950/70 border border-amber-500/40 text-amber-300">
+                  <Leaf className="w-3 h-3 text-amber-400" />
+                  Eco Active
+                </span>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-400">
+              ব্যাটারি কম থাকলে স্বয়ংক্রিয়ভাবে ভিজ্যুয়ালাইজার অ্যানিমেশন ফ্রেমরেট (22 FPS) ও ব্যাকগ্রাউন্ড পোলিং কমিয়ে দেয়।
+            </p>
+
+            {/* Mode selection buttons */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'auto', label: 'Auto (স্মার্ট)', sub: '<20% হলে চালু' },
+                { id: 'always_on', label: 'Always Eco', sub: 'সর্বোচ্চ সেভিং' },
+                { id: 'off', label: 'Full Power', sub: '60 FPS আনলিমিটেড' },
+              ].map((mode) => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => {
+                    const m = mode.id as PowerMode;
+                    onUpdateSettings({ powerMode: m });
+                    powerManager.setPowerMode(m);
+                  }}
+                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                    (settings.powerMode || 'auto') === mode.id
+                      ? 'bg-emerald-950/50 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
+                      : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <div className="text-xs font-bold">{mode.label}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">{mode.sub}</div>
+                </button>
+              ))}
+            </div>
+
+            {/* Battery Level Simulation & Low Battery Threshold Control */}
+            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                  {batteryState.isCharging ? <BatteryCharging className="w-3.5 h-3.5 text-emerald-400" /> : <Battery className="w-3.5 h-3.5 text-amber-400" />}
+                  বর্তমান ব্যাটারি লেভেল (Battery Level):
+                </span>
+                <span className="font-mono font-bold text-slate-200">{batteryState.level}%</span>
+              </div>
+
+              {/* Slider to test battery levels */}
+              <input
+                type="range"
+                min="5"
+                max="100"
+                value={batteryState.level}
+                onChange={(e) => powerManager.setBatteryLevel(Number(e.target.value))}
+                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+              />
+
+              <div className="flex items-center justify-between text-[11px] text-slate-400">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={batteryState.isCharging}
+                    onChange={(e) => powerManager.setCharging(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded accent-emerald-500"
+                  />
+                  <span>চার্জার কানেক্টেড (Charging)</span>
+                </label>
+
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      powerManager.setBatteryLevel(14);
+                      powerManager.setCharging(false);
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded bg-rose-950/60 border border-rose-600/40 text-rose-300 hover:bg-rose-900/60"
+                  >
+                    14% Low Test
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      powerManager.setBatteryLevel(85);
+                      powerManager.setCharging(false);
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
+                  >
+                    Reset (85%)
+                  </button>
+                </div>
+              </div>
+
+              {/* Critical Wake Feature Reassurance */}
+              <div className="flex items-start gap-2 pt-2 border-t border-slate-800/80 text-[11px] text-emerald-300/90">
+                <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>ভয়েস ওয়েক শতভাগ সক্রিয়:</strong> পাওয়ার সেভিং মোডেও ‘Hey Zoya’ বা ‘জয়া’ ভয়েস ডিটেকশন এবং সরাসরি অ্যান্ড্রয়েড অ্যাপ অ্যাকশন কোনো বিলম্ব ছাড়াই পূর্ণ গতিতে কাজ করে।
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Visualizer Theme Selector */}
