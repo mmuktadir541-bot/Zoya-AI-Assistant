@@ -1,7 +1,7 @@
 /**
  * AudioStreamer
  * Handles gapless 24kHz Web Audio API playback for Gemini Live responses,
- * real-time interruption cancellation, and frequency data extraction for visualizers.
+ * real-time interruption cancellation with click-free fadeout, and frequency data extraction for visualizers.
  */
 export class AudioStreamer {
   private audioCtx: AudioContext | null = null;
@@ -84,7 +84,7 @@ export class AudioStreamer {
 
       const now = this.audioCtx.currentTime;
       if (this.nextStartTime < now) {
-        this.nextStartTime = now + 0.02; // Small initial jitter safety margin
+        this.nextStartTime = now + 0.025; // 25ms safety jitter buffer
       }
 
       source.start(this.nextStartTime);
@@ -113,32 +113,49 @@ export class AudioStreamer {
 
   /**
    * Immediately stops all currently playing and queued audio buffers (Interrupt handling)
+   * with click-free rapid fadeout
    */
   public stop() {
-    for (const src of this.activeSources) {
+    if (this.gainNode && this.audioCtx) {
       try {
-        src.stop();
-        src.disconnect();
+        const now = this.audioCtx.currentTime;
+        this.gainNode.gain.cancelScheduledValues(now);
+        this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, now);
+        this.gainNode.gain.linearRampToValueAtTime(0, now + 0.01); // 10ms click-free ramp
       } catch (_) {}
     }
-    this.activeSources = [];
-    if (this.audioCtx) {
-      this.nextStartTime = this.audioCtx.currentTime;
-    }
-    this.onPlaybackEnd?.();
+
+    setTimeout(() => {
+      for (const src of this.activeSources) {
+        try {
+          src.stop();
+          src.disconnect();
+        } catch (_) {}
+      }
+      this.activeSources = [];
+      if (this.audioCtx) {
+        this.nextStartTime = this.audioCtx.currentTime;
+      }
+      // Restore normal gain
+      if (this.gainNode && this.audioCtx) {
+        const now = this.audioCtx.currentTime;
+        this.gainNode.gain.setValueAtTime(this.isMuted ? 0 : this.volume, now);
+      }
+      this.onPlaybackEnd?.();
+    }, 12);
   }
 
   public setVolume(vol: number) {
     this.volume = Math.max(0, Math.min(1, vol));
-    if (this.gainNode && !this.isMuted) {
-      this.gainNode.gain.setValueAtTime(this.volume, this.audioCtx?.currentTime || 0);
+    if (this.gainNode && !this.isMuted && this.audioCtx) {
+      this.gainNode.gain.setValueAtTime(this.volume, this.audioCtx.currentTime);
     }
   }
 
   public setMuted(muted: boolean) {
     this.isMuted = muted;
-    if (this.gainNode) {
-      this.gainNode.gain.setValueAtTime(muted ? 0 : this.volume, this.audioCtx?.currentTime || 0);
+    if (this.gainNode && this.audioCtx) {
+      this.gainNode.gain.setValueAtTime(muted ? 0 : this.volume, this.audioCtx.currentTime);
     }
     if (muted) {
       this.stop();

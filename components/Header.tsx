@@ -32,6 +32,7 @@ interface HeaderProps {
   onOpenScreenReader: () => void;
   onOpenFirstRunSetup: () => void;
   onOpenProjectExport: () => void;
+  onOpenNativeBridge: () => void;
   isMuted: boolean;
   onToggleMute: () => void;
   unreadCount: number;
@@ -52,6 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenScreenReader,
   onOpenFirstRunSetup,
   onOpenProjectExport,
+  onOpenNativeBridge,
   isMuted,
   onToggleMute,
   unreadCount,
@@ -131,6 +133,18 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Scan className="w-3.5 h-3.5 text-cyan-400" />
           <span className="hidden md:inline">SCREEN READER</span>
+        </button>
+
+        {/* Native Android Bridge & Services */}
+        <button
+          id="btn-open-native-bridge"
+          type="button"
+          onClick={onOpenNativeBridge}
+          title="Native Android Bridge & Foreground Service Control"
+          className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-semibold bg-cyan-950/70 border border-cyan-500/50 text-cyan-300 hover:bg-cyan-900 transition-all shadow-sm active:scale-95"
+        >
+          <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="hidden lg:inline">BRIDGE</span>
         </button>
 
         {/* Permissions & Setup Center */}

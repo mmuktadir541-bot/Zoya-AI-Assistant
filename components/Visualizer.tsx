@@ -21,7 +21,18 @@ export const Visualizer: React.FC<VisualizerProps> = ({
   const lastRenderTimeRef = useRef<number>(0);
 
   // Theme color palettes
-  const getThemePalettes = (t: VisualizerTheme) => {
+  const getThemePalettes = (t: VisualizerTheme, currentState?: AssistantState) => {
+    if (currentState === 'error') {
+      return {
+        primary: 'rgba(239, 68, 68, 0.9)', // Red-500
+        secondary: 'rgba(249, 115, 22, 0.85)', // Orange-500
+        tertiary: 'rgba(185, 28, 28, 0.75)', // Red-700
+        accent: 'rgba(252, 165, 165, 0.95)', // Red-300
+        core: 'rgba(255, 255, 255, 0.95)',
+        glow: 'rgba(239, 68, 68, 0.45)',
+      };
+    }
+
     switch (t) {
       case 'cyber_neon':
         return {
@@ -146,8 +157,9 @@ export const Visualizer: React.FC<VisualizerProps> = ({
       if (state === 'listening') stateBoost = 0.25 + smoothAmplitude * 0.85;
       else if (state === 'speaking') stateBoost = 0.35 + smoothAmplitude * 0.95;
       else if (state === 'thinking') stateBoost = 0.22 + Math.sin(time * 6) * 0.1;
+      else if (state === 'error') stateBoost = 0.3 + Math.sin(time * 8) * 0.15;
 
-      const colors = getThemePalettes(theme);
+      const colors = getThemePalettes(theme, state);
 
       ctx.clearRect(0, 0, width, height);
 

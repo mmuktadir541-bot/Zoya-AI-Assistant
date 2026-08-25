@@ -1,5 +1,6 @@
 import { ActionParseResult, AssistantAction, AndroidAppId, WorkType } from '../types';
 import { androidDeviceManager } from './androidDeviceManager';
+import { OfflineCommandEngine } from './offlineCommandEngine';
 
 /**
  * Natural Language Command Parser for Android AI Automation Agent (Zoya)
@@ -8,6 +9,16 @@ import { androidDeviceManager } from './androidDeviceManager';
 export class ActionParser {
   public static parseCommand(input: string): ActionParseResult {
     const raw = input.trim();
+    if (!raw) {
+      return { hasAction: false, cleanText: '', sassySpokenText: '' };
+    }
+
+    // High-speed offline command resolution for direct device intents (Settings, Flashlight, Timers, Apps)
+    const offlineRes = OfflineCommandEngine.parseOffline(raw);
+    if (offlineRes.hasAction) {
+      return offlineRes;
+    }
+
     const clean = raw.toLowerCase().replace(/^(hey\s+|suno\s+|please\s+|zoya\s+|can\s+you\s+|জয়া\s+|দয়া\s+করে\s+)+/i, '').trim();
 
     // 0. Assistant Wakeup / Activation: "Start Zoya", "Hey Zoya", "Hello Zoya", "শুরু করো"
@@ -39,20 +50,42 @@ export class ActionParser {
       (clean.includes('termux') || clean.includes('টার্মাক্স') || clean.includes('টার্মুক্স')) &&
       (clean.includes('কমান্ড') || clean.includes('command') || clean.includes('চালাও') || clean.includes('run') || clean.includes('exec') || clean.includes('চালান'))
     ) {
-      let command = 'uname -a && termux-battery-status';
-      
-      const cmdMatch = raw.match(/(?:চালাও|run|exec|command|কমান্ড)[:\s]+(.+)$/i) ||
-                       raw.match(/[`"']([^`"']+)`['"]/);
-      if (cmdMatch && cmdMatch[1]) {
-        command = cmdMatch[1].trim();
-      } else if (clean.includes('storage') || clean.includes('স্টোরেজ')) {
-        command = 'termux-setup-storage';
-      } else if (clean.includes('battery') || clean.includes('ব্যাটারি')) {
-        command = 'termux-battery-status';
-      } else if (clean.includes('update') || clean.includes('আপডেট')) {
-        command = 'pkg update';
-      } else if (clean.includes('python') || clean.includes('পাইথন')) {
-        command = 'python -c "print(\'Hello from Android AI Agent via Termux!\')"';
+      let command = '';
+
+      // Check for quotes first: `rm -rf` or "rm -rf" or 'rm -rf'
+      const quotedMatch = raw.match(/[`"']([^`"']+)`['"]/);
+      if (quotedMatch && quotedMatch[1]) {
+        command = quotedMatch[1].trim();
+      }
+
+      // Check for colon: Termux: rm -rf /sdcard/Photos
+      if (!command) {
+        const colonMatch = raw.match(/(?:termux|টার্মাক্স)\s*:\s*(.+)$/i);
+        if (colonMatch && colonMatch[1]) {
+          command = colonMatch[1].replace(/\s*(?:কমান্ড\s+চালাও|কমান্ড|চালাও|চালান|রান\s+করো|run|exec)$/i, '').trim();
+        }
+      }
+
+      // Check for pattern: Termux(-এ| এ| in)? <command> (কমান্ড চালাও|কমান্ড|চালাও|রান করো|run|exec)
+      if (!command) {
+        const patternMatch = raw.match(/(?:termux(?:-এ|\s*এ|\s*in)?|টার্মাক্স(?:-এ|\s*এ)?)\s+(.+?)(?:\s+(?:কমান্ড\s+চালাও|কমান্ড\s+রান\s+করো|কমান্ড|চালাও|চালান|রান\s+করো|run|exec))?$/i);
+        if (patternMatch && patternMatch[1]) {
+          command = patternMatch[1].trim();
+        }
+      }
+
+      if (!command || command.toLowerCase() === 'termux' || command.toLowerCase() === 'টার্মাক্স') {
+        if (clean.includes('storage') || clean.includes('স্টোরেজ')) {
+          command = 'termux-setup-storage';
+        } else if (clean.includes('battery') || clean.includes('ব্যাটারি')) {
+          command = 'termux-battery-status';
+        } else if (clean.includes('update') || clean.includes('আপডেট')) {
+          command = 'pkg update';
+        } else if (clean.includes('python') || clean.includes('পাইথন')) {
+          command = 'python -c "print(\'Hello from Android AI Agent via Termux!\')"';
+        } else {
+          command = 'uname -a && termux-battery-status';
+        }
       }
 
       const safety = androidDeviceManager.evaluateCommandSafety(command);

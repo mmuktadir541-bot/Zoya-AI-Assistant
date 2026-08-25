@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, MicOff, Volume2, Sparkles, Loader2, Zap } from 'lucide-react';
+import { Mic, MicOff, Volume2, Sparkles, Loader2, Zap, AlertCircle, PlayCircle } from 'lucide-react';
 import { AssistantState, VoiceEngine } from '../types';
 
 interface MicButtonProps {
@@ -18,6 +18,24 @@ export const MicButton: React.FC<MicButtonProps> = ({
   disabled = false,
 }) => {
   const getButtonContent = () => {
+    if (state === 'error') {
+      return {
+        icon: <AlertCircle className="w-8 h-8 text-white animate-pulse" />,
+        label: 'Error occurred • Tap to retry',
+        ringColor: 'border-red-500 shadow-red-500/50',
+        bgColor: 'bg-gradient-to-tr from-red-600 via-rose-600 to-amber-600',
+      };
+    }
+
+    if (state === 'executing') {
+      return {
+        icon: <PlayCircle className="w-8 h-8 text-white animate-spin" />,
+        label: 'Executing Android Action...',
+        ringColor: 'border-amber-400 shadow-amber-400/50',
+        bgColor: 'bg-gradient-to-tr from-amber-500 via-orange-600 to-purple-600',
+      };
+    }
+
     if (voiceEngine === 'live') {
       if (state === 'speaking') {
         return {
@@ -104,6 +122,10 @@ export const MicButton: React.FC<MicButtonProps> = ({
           </>
         )}
 
+        {state === 'error' && (
+          <div className="absolute w-28 h-28 rounded-full bg-red-500/20 animate-pulse" />
+        )}
+
         {/* Core Button */}
         <button
           id="zoya-main-mic-button"
@@ -137,7 +159,11 @@ export const MicButton: React.FC<MicButtonProps> = ({
           flex items-center gap-2 px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium tracking-wide
           backdrop-blur-md border transition-all duration-300
           ${
-            voiceEngine === 'live' && isLiveConnected
+            state === 'error'
+              ? 'bg-red-950/60 border-red-500/40 text-red-200'
+              : state === 'executing'
+              ? 'bg-amber-950/60 border-amber-500/40 text-amber-200'
+              : voiceEngine === 'live' && isLiveConnected
               ? state === 'speaking'
                 ? 'bg-cyan-950/60 border-cyan-500/40 text-cyan-200'
                 : 'bg-emerald-950/60 border-emerald-500/40 text-emerald-200'
@@ -151,7 +177,9 @@ export const MicButton: React.FC<MicButtonProps> = ({
           }
         `}
       >
-        {voiceEngine === 'live' ? (
+        {state === 'error' ? (
+          <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+        ) : voiceEngine === 'live' ? (
           <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
         ) : (
           <Sparkles className="w-3.5 h-3.5 opacity-80" />

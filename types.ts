@@ -90,21 +90,53 @@ export type WorkType =
   | 'F_SCREEN_READER'
   | 'G_SHIZUKU_PRIVILEGED';
 
-export type CommandDangerLevel = 'safe' | 'moderate' | 'privileged' | 'destructive';
+export type CommandDangerLevel = 'safe' | 'moderate' | 'privileged' | 'destructive' | 'forbidden';
+
+export interface TermuxIntegrationStatus {
+  isInstalled: boolean;
+  isApiInstalled: boolean;
+  isRunCommandGranted: boolean;
+  isNativeBridgeConnected: boolean;
+  packageVersion?: string;
+  lastChecked: number;
+}
+
+export interface CommandSafetyEvaluation {
+  command: string;
+  sanitizedCommand: string;
+  binary: string;
+  args: string[];
+  dangerLevel: CommandDangerLevel;
+  isAllowed: boolean;
+  isForbidden: boolean;
+  isInteractive: boolean;
+  requiresConfirmation: boolean;
+  explanation: string;
+  explanationBn: string;
+  warning?: string;
+  warningBn?: string;
+}
 
 export interface TermuxExecutionRecord {
   id: string;
   command: string;
+  sanitizedCommand?: string;
   explanation: string;
   explanationBn: string;
   dangerLevel: CommandDangerLevel;
   requiresConfirmation: boolean;
+  isInteractive?: boolean;
+  isBlocked?: boolean;
+  blockedReason?: string;
+  blockedReasonBn?: string;
   stdout: string;
   stderr: string;
   exitCode: number;
-  status: 'pending' | 'approved' | 'running' | 'completed' | 'rejected' | 'failed';
+  status: 'pending' | 'approved' | 'running' | 'completed' | 'rejected' | 'failed' | 'timed_out' | 'cancelled' | 'blocked';
   executedAt: number;
   durationMs?: number;
+  timeoutMs?: number;
+  isTruncated?: boolean;
 }
 
 export interface ScreenNode {
@@ -250,4 +282,81 @@ export interface ActionParseResult {
   cleanText: string;
   sassySpokenText: string;
   emotion?: 'sassy' | 'flirty' | 'witty' | 'dramatic' | 'smart' | 'roasting';
+}
+
+// Native Android Bridge & Service Foundation Types (Priority 3)
+export interface NativeBridgeInfo {
+  isNativeEnvironment: boolean;
+  platform: 'android_native' | 'android_webview' | 'browser_simulation';
+  androidApiLevel: number;
+  appVersion: string;
+  bridgeConnected: boolean;
+  bridgeName: string;
+}
+
+export type ForegroundServiceState = 'stopped' | 'starting' | 'running' | 'paused' | 'error';
+export type ForegroundServiceType = 'microphone' | 'mediaPlayback' | 'specialUse' | 'dataSync';
+
+export interface ForegroundServiceStatus {
+  state: ForegroundServiceState;
+  serviceType: ForegroundServiceType;
+  channelId: string;
+  notificationTitle: string;
+  notificationContent: string;
+  activeSince: number | null;
+  audioFocusHeld: boolean;
+  wakeLockActive: boolean;
+  lastErrorMessage?: string;
+}
+
+export interface AccessibilityBridgeStatus {
+  isEnabledInSettings: boolean;
+  isServiceConnected: boolean;
+  canRetrieveWindowContent: boolean;
+  canPerformGestures: boolean;
+  packageFilter: string[];
+  feedbackType: string;
+  lastEventTimestamp?: number;
+}
+
+export interface AndroidIntentPayload {
+  id: string;
+  action: string;
+  packageName?: string;
+  className?: string;
+  dataUri?: string;
+  type?: string;
+  categories?: string[];
+  flags?: number[];
+  extras?: Record<string, any>;
+  component?: string;
+  timestamp: number;
+}
+
+export interface IntentDispatchResult {
+  intentId: string;
+  dispatched: boolean;
+  verified: boolean;
+  targetPackage?: string;
+  action: string;
+  responseDetails?: string;
+  responseDetailsBn?: string;
+  auditId?: string;
+  error?: string;
+}
+
+export interface SecurityConfirmationRequest {
+  id: string;
+  action: AssistantAction;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  title: string;
+  titleBn: string;
+  explanation: string;
+  explanationBn: string;
+  command?: string;
+  targetApp?: string;
+  packageName?: string;
+  payloadSummary?: string;
+  timestamp: number;
+  isDestructive: boolean;
 }

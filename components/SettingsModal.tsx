@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Volume2, Palette, Sparkles, Radio, Check, Info, Shield, Smartphone, Globe, Battery, BatteryCharging, Leaf, Zap } from 'lucide-react';
+import { X, Volume2, Palette, Sparkles, Radio, Check, Info, Shield, Smartphone, Globe, Battery, BatteryCharging, Leaf, Zap, Brain, Trash2, Plus } from 'lucide-react';
 import { VoiceSettings, VisualizerTheme, PowerMode, BatteryState } from '../types';
 import { speechService } from '../services/speechService';
 import { powerManager } from '../services/powerManager';
+import { memoryService, UserMemoryItem } from '../services/memoryService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -22,11 +23,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onOpenAuditLogs,
 }) => {
   const [batteryState, setBatteryState] = useState<BatteryState>(powerManager.getState());
+  const [memories, setMemories] = useState<UserMemoryItem[]>(() => memoryService.getAllMemories());
+  const [newMemKey, setNewMemKey] = useState<string>('');
+  const [newMemVal, setNewMemVal] = useState<string>('');
 
   useEffect(() => {
     const unsub = powerManager.subscribe((st) => setBatteryState(st));
     return unsub;
   }, []);
+
+  const handleAddMemory = () => {
+    if (newMemKey.trim() && newMemVal.trim()) {
+      memoryService.setMemory(newMemKey.trim(), newMemVal.trim(), 'custom');
+      setMemories(memoryService.getAllMemories());
+      setNewMemKey('');
+      setNewMemVal('');
+    }
+  };
+
+  const handleDeleteMemory = (key: string) => {
+    memoryService.deleteMemory(key);
+    setMemories(memoryService.getAllMemories());
+  };
 
   if (!isOpen) return null;
 
@@ -325,6 +343,73 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <strong>ভয়েস ওয়েক শতভাগ সক্রিয়:</strong> পাওয়ার সেভিং মোডেও ‘Hey Zoya’ বা ‘জয়া’ ভয়েস ডিটেকশন এবং সরাসরি অ্যান্ড্রয়েড অ্যাপ অ্যাকশন কোনো বিলম্ব ছাড়াই পূর্ণ গতিতে কাজ করে।
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Long-Term Memory & User Context Section */}
+          <div className="space-y-3 pt-4 border-t border-slate-800/80">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
+                <Brain className="w-4 h-4 text-purple-400" />
+                <span>লং-টার্ম মেমোরি ও কনটেক্সট (Memory System)</span>
+              </label>
+              <span className="text-[10px] text-purple-300 bg-purple-950/60 border border-purple-500/30 px-2 py-0.5 rounded-full">
+                {memories.length} টি তথ্য সংরক্ষিত
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-400">
+              জয়া আপনার ব্যক্তিগত পছন্দ, ডিভাইস এবং অভ্যাস মনে রাখে এবং পরবর্তীতে আরও পার্সোনালাইজড সহায়তা দেয়।
+            </p>
+
+            {/* List of active memories */}
+            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+              {memories.map((m) => (
+                <div
+                  key={m.key}
+                  className="flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs"
+                >
+                  <div className="min-w-0 pr-2">
+                    <span className="font-semibold text-purple-300">{m.key}: </span>
+                    <span className="text-slate-300">{m.value}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteMemory(m.key)}
+                    className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors shrink-0"
+                    title="মুছে ফেলুন"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Add memory item */}
+            <div className="flex gap-1.5 pt-1">
+              <input
+                type="text"
+                placeholder="Key (যেমন: favorite_food)"
+                value={newMemKey}
+                onChange={(e) => setNewMemKey(e.target.value)}
+                className="w-1/3 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-purple-500"
+              />
+              <input
+                type="text"
+                placeholder="Value (যেমন: Kacchi Biryani)"
+                value={newMemVal}
+                onChange={(e) => setNewMemVal(e.target.value)}
+                className="flex-1 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-purple-500"
+              />
+              <button
+                type="button"
+                onClick={handleAddMemory}
+                disabled={!newMemKey.trim() || !newMemVal.trim()}
+                className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold disabled:opacity-40 flex items-center gap-1 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>যুক্ত করুন</span>
+              </button>
             </div>
           </div>
 

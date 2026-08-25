@@ -239,7 +239,7 @@ VOICE & LIVE AUDIO RULES:
   // REST Chat endpoint powered by Gemini 3.7 Flash
   app.post("/api/chat", async (req, res) => {
     try {
-      const { message, history } = req.body;
+      const { message, history, memoryContext } = req.body;
       if (!message) {
         return res.status(400).json({ error: "Message is required" });
       }
@@ -255,6 +255,10 @@ VOICE & LIVE AUDIO RULES:
           source: "offline_engine"
         });
       }
+
+      const contextualInstruction = memoryContext 
+        ? `${systemInstruction}\n\nUSER PERSONAL MEMORY & CONTEXT:\n${memoryContext}`
+        : systemInstruction;
 
       const formattedContents: any[] = [];
       if (Array.isArray(history)) {
@@ -272,7 +276,7 @@ VOICE & LIVE AUDIO RULES:
         model: "gemini-3.7-flash",
         contents: formattedContents,
         config: {
-          systemInstruction,
+          systemInstruction: contextualInstruction,
           tools: liveTools,
           temperature: 0.85,
         }

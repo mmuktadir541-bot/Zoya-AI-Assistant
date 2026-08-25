@@ -9,6 +9,7 @@ import {
   ScreenNode,
   TermuxExecutionRecord,
 } from '../types';
+import { termuxExecutionEngine } from './termuxExecutionEngine';
 
 export const INITIAL_ANDROID_PERMISSIONS: AndroidPermissionState[] = [
   {
@@ -623,12 +624,30 @@ export class AndroidDeviceManager {
     return ANDROID_APPS;
   }
 
+  public getInstalledApps(): AndroidApp[] {
+    return ANDROID_APPS;
+  }
+
+  public getApps(): AndroidApp[] {
+    return ANDROID_APPS;
+  }
+
   public getAppById(id: string): AndroidApp | undefined {
     return ANDROID_APPS.find((a) => a.id.toLowerCase() === id.toLowerCase());
   }
 
-  public resolveApp(query: string): AndroidApp {
+  public getAppByPackage(packageName: string): AndroidApp | undefined {
+    if (!packageName) return undefined;
+    return ANDROID_APPS.find((a) => a.packageName.toLowerCase() === packageName.toLowerCase());
+  }
+
+  public getAppByPackageName(packageName: string): AndroidApp | undefined {
+    return this.getAppByPackage(packageName);
+  }
+
+  public resolveApp(query: string, allowGenericFallback: boolean = false): AndroidApp | undefined {
     const q = query.toLowerCase().trim();
+    if (!q) return undefined;
     
     // Direct matches
     const exact = ANDROID_APPS.find(
@@ -641,34 +660,36 @@ export class AndroidDeviceManager {
     if (exact) return exact;
 
     // Fuzzy & Bengali keyword matches
-    if (q.includes('termux') || q.includes('টার্মাক্স') || q.includes('টার্মুক্স') || q.includes('টার্মিনাল')) return this.getAppById('termux')!;
-    if (q.includes('shizuku') || q.includes('শিজুকু')) return this.getAppById('shizuku')!;
-    if (q.includes('whatsapp') || q.includes('হোয়াটসঅ্যাপ') || q.includes('হোয়াটস্যাপ')) return this.getAppById('whatsapp')!;
-    if (q.includes('facebook') || q.includes('ফেসবুক') || q.includes('fb')) return this.getAppById('facebook')!;
-    if (q.includes('messenger') || q.includes('মেসেঞ্জার')) return this.getAppById('messenger')!;
-    if (q.includes('bkash') || q.includes('বিকাশ')) return this.getAppById('bkash')!;
-    if (q.includes('nagad') || q.includes('নগদ')) return this.getAppById('nagad')!;
-    if (q.includes('youtube') || q.includes('ইউটিউব')) return this.getAppById('youtube')!;
-    if (q.includes('chrome') || q.includes('ক্রোম') || q.includes('browser') || q.includes('ব্রাউজার')) return this.getAppById('chrome')!;
-    if (q.includes('gmail') || q.includes('জিমেইল') || q.includes('ইমেইল') || q.includes('mail')) return this.getAppById('gmail')!;
-    if (q.includes('maps') || q.includes('ম্যাপস') || q.includes('ম্যাপ') || q.includes('রাস্তা')) return this.getAppById('maps')!;
-    if (q.includes('files') || q.includes('ফাইলস') || q.includes('ফাইল') || q.includes('ডকুমেন্ট')) return this.getAppById('files')!;
-    if (q.includes('phone') || q.includes('ফোন') || q.includes('ডায়লার') || q.includes('কল')) return this.getAppById('phone')!;
-    if (q.includes('messages') || q.includes('মেসেজেস') || q.includes('sms') || q.includes('এসএমএস')) return this.getAppById('messages')!;
-    if (q.includes('camera') || q.includes('ক্যামেরা') || q.includes('ছবি তুল')) return this.getAppById('camera')!;
-    if (q.includes('calculator') || q.includes('ক্যালকুলেটর') || q.includes('হিসাব')) return this.getAppById('calculator')!;
-    if (q.includes('calendar') || q.includes('ক্যালেন্ডার') || q.includes('তারিখ')) return this.getAppById('calendar')!;
-    if (q.includes('clock') || q.includes('ঘড়ি') || q.includes('alarm') || q.includes('অ্যালার্ম')) return this.getAppById('clock')!;
-    if (q.includes('spotify') || q.includes('স্পটিফাই') || q.includes('গান')) return this.getAppById('spotify')!;
-    if (q.includes('instagram') || q.includes('ইনস্টাগ্রাম') || q.includes('ইনস্টা') || q.includes('insta')) return this.getAppById('instagram')!;
-    if (q.includes('tiktok') || q.includes('টিকটক')) return this.getAppById('tiktok')!;
-    if (q.includes('telegram') || q.includes('টেলিগ্রাম')) return this.getAppById('telegram')!;
-    if (q.includes('notes') || q.includes('নোট') || q.includes('keep') || q.includes('কিপ')) return this.getAppById('notes')!;
-    if (q.includes('play') || q.includes('store') || q.includes('প্লে স্টোর')) return this.getAppById('playstore')!;
-    if (q.includes('photos') || q.includes('ছবি') || q.includes('gallery') || q.includes('গ্যালারি') || q.includes('ফটোস')) return this.getAppById('photos')!;
-    if (q.includes('drive') || q.includes('ড্রাইভ')) return this.getAppById('drive')!;
-    if (q.includes('chatgpt') || q.includes('gpt') || q.includes('চ্যাটজিপিটি')) return this.getAppById('chatgpt')!;
-    if (q.includes('settings') || q.includes('সেটিংস') || q.includes('setting')) return this.getAppById('settings')!;
+    if (q.includes('termux') || q.includes('টার্মাক্স') || q.includes('টার্মুক্স') || q.includes('টার্মিনাল')) return this.getAppById('termux');
+    if (q.includes('shizuku') || q.includes('শিজুকু')) return this.getAppById('shizuku');
+    if (q.includes('whatsapp') || q.includes('হোয়াটসঅ্যাপ') || q.includes('হোয়াটস্যাপ')) return this.getAppById('whatsapp');
+    if (q.includes('facebook') || q.includes('ফেসবুক') || q.includes('fb')) return this.getAppById('facebook');
+    if (q.includes('messenger') || q.includes('মেসেঞ্জার')) return this.getAppById('messenger');
+    if (q.includes('bkash') || q.includes('বিকাশ')) return this.getAppById('bkash');
+    if (q.includes('nagad') || q.includes('নগদ')) return this.getAppById('nagad');
+    if (q.includes('youtube') || q.includes('ইউটিউব')) return this.getAppById('youtube');
+    if (q.includes('chrome') || q.includes('ক্রোম') || q.includes('browser') || q.includes('ব্রাউজার')) return this.getAppById('chrome');
+    if (q.includes('gmail') || q.includes('জিমেইল') || q.includes('ইমেইল') || q.includes('mail')) return this.getAppById('gmail');
+    if (q.includes('maps') || q.includes('ম্যাপস') || q.includes('ম্যাপ') || q.includes('রাস্তা')) return this.getAppById('maps');
+    if (q.includes('files') || q.includes('ফাইলস') || q.includes('ফাইল') || q.includes('ডকুমেন্ট')) return this.getAppById('files');
+    if (q.includes('phone') || q.includes('ফোন') || q.includes('ডায়লার') || q.includes('কল')) return this.getAppById('phone');
+    if (q.includes('messages') || q.includes('মেসেজেস') || q.includes('sms') || q.includes('এসএমএস')) return this.getAppById('messages');
+    if (q.includes('camera') || q.includes('ক্যামেরা') || q.includes('ছবি তুল')) return this.getAppById('camera');
+    if (q.includes('calculator') || q.includes('ক্যালকুলেটর') || q.includes('হিসাব')) return this.getAppById('calculator');
+    if (q.includes('calendar') || q.includes('ক্যালেন্ডার') || q.includes('তারিখ')) return this.getAppById('calendar');
+    if (q.includes('clock') || q.includes('ঘড়ি') || q.includes('alarm') || q.includes('অ্যালার্ম')) return this.getAppById('clock');
+    if (q.includes('spotify') || q.includes('স্পটিফাই') || q.includes('গান')) return this.getAppById('spotify');
+    if (q.includes('instagram') || q.includes('ইনস্টাগ্রাম') || q.includes('ইনস্টা') || q.includes('insta')) return this.getAppById('instagram');
+    if (q.includes('tiktok') || q.includes('টিকটক')) return this.getAppById('tiktok');
+    if (q.includes('telegram') || q.includes('টেলিগ্রাম')) return this.getAppById('telegram');
+    if (q.includes('notes') || q.includes('নোট') || q.includes('keep') || q.includes('কিপ')) return this.getAppById('notes');
+    if (q.includes('play') || q.includes('store') || q.includes('প্লে স্টোর')) return this.getAppById('playstore');
+    if (q.includes('photos') || q.includes('ছবি') || q.includes('gallery') || q.includes('গ্যালারি') || q.includes('ফটোস')) return this.getAppById('photos');
+    if (q.includes('drive') || q.includes('ড্রাইভ')) return this.getAppById('drive');
+    if (q.includes('chatgpt') || q.includes('gpt') || q.includes('চ্যাটজিপিটি')) return this.getAppById('chatgpt');
+    if (q.includes('settings') || q.includes('সেটিংস') || q.includes('setting')) return this.getAppById('settings');
+
+    if (!allowGenericFallback) return undefined;
 
     // Dynamic Generic App Fallback for ANY app installed on mobile device
     const cleanPkgName = q.replace(/[^a-z0-9_]/g, '');
@@ -746,7 +767,7 @@ export class AndroidDeviceManager {
   }
 
   /**
-   * Classify safety and potential destructiveness of a terminal command
+   * Classify safety and potential destructiveness of a terminal command using the dedicated Security Policy Engine
    */
   public evaluateCommandSafety(command: string): {
     dangerLevel: CommandDangerLevel;
@@ -754,68 +775,12 @@ export class AndroidDeviceManager {
     explanation: string;
     explanationBn: string;
   } {
-    const cmd = command.trim().toLowerCase();
-
-    // Destructive
-    if (
-      cmd.includes('rm -rf') ||
-      cmd.includes('rm -r /') ||
-      cmd.includes('mkfs') ||
-      cmd.includes('dd if=') ||
-      cmd.includes('format') ||
-      cmd.includes(':(){ :|:& };:') ||
-      cmd.includes('reboot') ||
-      cmd.includes('chmod -r 777 /')
-    ) {
-      return {
-        dangerLevel: 'destructive',
-        requiresConfirmation: true,
-        explanation: 'Potentially destructive command that could delete critical files or restart the operating system.',
-        explanationBn: 'উচ্চ ঝুঁকিপূর্ণ কমান্ড যা ফাইল মুছে ফেলা বা সিস্টেম রিস্টার্ট করতে পারে। ব্যবহারকারীর সম্মতি বাধ্যতামূলক।',
-      };
-    }
-
-    // Privileged
-    if (
-      cmd.includes('pm uninstall') ||
-      cmd.includes('su') ||
-      cmd.includes('shizuku') ||
-      cmd.includes('setprop') ||
-      cmd.includes('dumpsys') ||
-      cmd.includes('killall')
-    ) {
-      return {
-        dangerLevel: 'privileged',
-        requiresConfirmation: true,
-        explanation: 'Privileged system command that modifies system properties or packages.',
-        explanationBn: 'প্রিভিলেজড সিস্টেম কমান্ড যা প্যাকেজ বা সিস্টেম প্রোপার্টি পরিবর্তন করতে পারে।',
-      };
-    }
-
-    // Moderate
-    if (
-      cmd.includes('pkg install') ||
-      cmd.includes('pip install') ||
-      cmd.includes('npm install') ||
-      cmd.includes('git clone') ||
-      cmd.includes('curl') ||
-      cmd.includes('wget') ||
-      cmd.includes('termux-setup-storage')
-    ) {
-      return {
-        dangerLevel: 'moderate',
-        requiresConfirmation: false,
-        explanation: 'Standard network download or package installation.',
-        explanationBn: 'প্যাকেজ ইনস্টল বা নেটওয়ার্ক ডাউনলোড কমান্ড।',
-      };
-    }
-
-    // Safe
+    const evalResult = termuxExecutionEngine.evaluateCommandSafety(command);
     return {
-      dangerLevel: 'safe',
-      requiresConfirmation: false,
-      explanation: 'Read-only or harmless terminal telemetry command.',
-      explanationBn: 'নিরাপদ রিড-অনলি কমান্ড।',
+      dangerLevel: evalResult.dangerLevel,
+      requiresConfirmation: evalResult.requiresConfirmation,
+      explanation: evalResult.explanation,
+      explanationBn: evalResult.explanationBn,
     };
   }
 
@@ -823,17 +788,99 @@ export class AndroidDeviceManager {
    * Execute Termux Command with stdout/stderr capture & Intent dispatch
    */
   public executeTermuxCommand(command: string): TermuxExecutionRecord {
+    // For synchronous calls, we create a record or retrieve synchronous evaluation
     const safety = this.evaluateCommandSafety(command);
     const id = `termux_${Date.now()}`;
     const startTime = Date.now();
 
+    // Trigger async execution inside the engine
+    termuxExecutionEngine.executeCommand(command).catch((e) => {
+      console.error('[TermuxExecutionEngine] Async execute error:', e);
+    });
+
+    const status = termuxExecutionEngine.getStatus();
+    if (!status.isInstalled) {
+      const record: TermuxExecutionRecord = {
+        id,
+        command,
+        explanation: 'Termux application is not installed on this device.',
+        explanationBn: 'টার্মাক্স অ্যাপটি ডিভাইসে ইনস্টল করা নেই।',
+        dangerLevel: 'safe',
+        requiresConfirmation: false,
+        stdout: '',
+        stderr: 'Termux is not installed on this device. Please install Termux from F-Droid or GitHub.',
+        exitCode: 127,
+        status: 'failed',
+        executedAt: Date.now(),
+        durationMs: 10,
+      };
+      this.termuxHistory.unshift(record);
+      this.saveTermuxHistory();
+      return record;
+    }
+
+    const evalResult = termuxExecutionEngine.evaluateCommandSafety(command);
+    if (evalResult.isInteractive) {
+      const record: TermuxExecutionRecord = {
+        id,
+        command,
+        explanation: evalResult.explanation,
+        explanationBn: evalResult.explanationBn,
+        dangerLevel: evalResult.dangerLevel,
+        requiresConfirmation: false,
+        isInteractive: true,
+        isBlocked: true,
+        stdout: '',
+        stderr: 'Interactive input is not currently supported for this command.',
+        exitCode: 1,
+        status: 'blocked',
+        executedAt: Date.now(),
+        durationMs: 15,
+      };
+      this.termuxHistory.unshift(record);
+      this.saveTermuxHistory();
+      return record;
+    }
+
+    if (evalResult.isForbidden) {
+      const record: TermuxExecutionRecord = {
+        id,
+        command,
+        explanation: evalResult.explanation,
+        explanationBn: evalResult.explanationBn,
+        dangerLevel: 'forbidden',
+        requiresConfirmation: false,
+        isBlocked: true,
+        stdout: '',
+        stderr: `[Security Policy Blocked] ${evalResult.explanation}`,
+        exitCode: 126,
+        status: 'blocked',
+        executedAt: Date.now(),
+        durationMs: 15,
+      };
+      this.termuxHistory.unshift(record);
+      this.saveTermuxHistory();
+      return record;
+    }
+
     let stdout = '';
     let stderr = '';
     let exitCode = 0;
-
     const trimmed = command.trim();
 
-    if (trimmed.startsWith('termux-battery-status')) {
+    if (trimmed === 'pwd') {
+      stdout = '/data/data/com.termux/files/home';
+    } else if (trimmed === 'whoami') {
+      stdout = 'u0_a248';
+    } else if (trimmed.startsWith('date')) {
+      stdout = new Date().toUTCString();
+    } else if (trimmed.startsWith('uptime')) {
+      stdout = ' 14:32:00 up 3 days,  7:45,  1 user,  load average: 0.35, 0.30, 0.28';
+    } else if (trimmed.startsWith('uname')) {
+      stdout = 'Linux localhost 6.1.75-android15-g9pro #1 SMP PREEMPT Fri Aug 21 18:22:10 UTC 2026 aarch64 Android';
+    } else if (trimmed.startsWith('ls')) {
+      stdout = 'android_agent.py   build.gradle.kts   dist/   node_modules/   package.json   storage/   workspace/';
+    } else if (trimmed.startsWith('termux-battery-status')) {
       stdout = JSON.stringify(
         {
           health: 'GOOD',
@@ -848,16 +895,6 @@ export class AndroidDeviceManager {
       );
     } else if (trimmed.startsWith('termux-setup-storage')) {
       stdout = `[+] Storage permission verified.\n[+] Created symlinks in ~/storage:\n  ~/storage/shared -> /storage/emulated/0\n  ~/storage/downloads -> /storage/emulated/0/Download\n  ~/storage/dcim -> /storage/emulated/0/DCIM`;
-    } else if (trimmed.startsWith('uname') || trimmed.startsWith('uname -a')) {
-      stdout = `Linux localhost 6.1.75-android15-g9pro #1 SMP PREEMPT Fri Aug 21 18:22:10 UTC 2026 aarch64 Android`;
-    } else if (trimmed.startsWith('whoami')) {
-      stdout = `u0_a248`;
-    } else if (trimmed.startsWith('pwd')) {
-      stdout = `/data/data/com.termux/files/home`;
-    } else if (trimmed.startsWith('pkg update') || trimmed.startsWith('apt update')) {
-      stdout = `Hit:1 https://packages.termux.dev/apt/termux-main stable InRelease\nAll packages are up to date.`;
-    } else if (trimmed.startsWith('ls')) {
-      stdout = `android_agent.py   build.gradle.kts   dist/   node_modules/   package.json   storage/   workspace/`;
     } else if (trimmed.startsWith('python') || trimmed.startsWith('python3')) {
       stdout = `Python 3.12.4 (main, Jun 12 2026, 14:10:00) [Clang 18.0.0] on linux\nExecution finished successfully.`;
     } else if (trimmed.startsWith('curl') && trimmed.includes('wttr.in')) {
@@ -865,17 +902,11 @@ export class AndroidDeviceManager {
     } else if (trimmed.startsWith('termux-toast')) {
       const msg = trimmed.replace(/^termux-toast\s*["']?/, '').replace(/["']?$/, '') || 'Zoya Assistant';
       stdout = `[Termux:API Toast] "${msg}" dispatched to screen notification.`;
-    } else if (trimmed.startsWith('termux-camera-photo')) {
-      stdout = `[Termux:API] Photo captured to /sdcard/DCIM/termux_capture_2026.jpg`;
-    } else if (trimmed.startsWith('termux-clipboard-get')) {
-      stdout = `https://github.com/muktadir/zoya-android-agent`;
-    } else if (trimmed.startsWith('shizuku') || trimmed.startsWith('rish')) {
-      stdout = `[Shizuku IPC] Ping OK. UID: 2000 (shell). SELinux: permissive.`;
     } else {
       stdout = `[Termux Local Shell] Process PID: ${Math.floor(10000 + Math.random() * 50000)}\nExecuting: ${command}\n\n[Done] Status: 0 (OK)`;
     }
 
-    const durationMs = Date.now() - startTime + Math.floor(Math.random() * 40 + 20);
+    const durationMs = Date.now() - startTime + Math.floor(Math.random() * 30 + 15);
 
     const record: TermuxExecutionRecord = {
       id,
@@ -895,22 +926,6 @@ export class AndroidDeviceManager {
     this.termuxHistory.unshift(record);
     this.saveTermuxHistory();
 
-    // Trigger Intent to real Android Termux if running on mobile device
-    const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-    if (isAndroid) {
-      try {
-        const intentUri = `intent:#Intent;package=com.termux;action=com.termux.app.RUN_COMMAND;S.com.termux.RUN_COMMAND_PATH=/data/data/com.termux/files/usr/bin/bash;S.com.termux.RUN_COMMAND_ARGUMENTS=-c,${encodeURIComponent(command)};end;`;
-        const link = document.createElement('a');
-        link.href = intentUri;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-          if (document.body.contains(link)) document.body.removeChild(link);
-        }, 500);
-      } catch (e) {}
-    }
-
     this.addAuditLog({
       actionTitle: `Termux Command: ${command.substring(0, 30)}`,
       targetApp: 'termux',
@@ -923,10 +938,15 @@ export class AndroidDeviceManager {
   }
 
   public getTermuxHistory(): TermuxExecutionRecord[] {
+    const engineHistory = termuxExecutionEngine.getHistory();
+    if (engineHistory && engineHistory.length > 0) {
+      return engineHistory;
+    }
     return [...this.termuxHistory];
   }
 
   public clearTermuxHistory() {
+    termuxExecutionEngine.clearHistory();
     this.termuxHistory = [];
     this.saveTermuxHistory();
   }

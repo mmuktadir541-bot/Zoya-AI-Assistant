@@ -327,6 +327,237 @@ class ShizukuManager {
     }
 }`,
   },
+  foreground_service: {
+    title: 'ZoyaForegroundService.kt',
+    filename: 'app/src/main/java/com/zoya/android/agent/services/ZoyaForegroundService.kt',
+    language: 'kotlin',
+    content: `package com.zoya.android.agent.services
+
+import android.app.Notification
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
+import android.os.IBinder
+import android.os.PowerManager
+import androidx.core.app.NotificationCompat
+import com.zoya.android.agent.ZoyaApplication
+import com.zoya.android.agent.ui.MainActivity
+
+class ZoyaForegroundService : Service() {
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var audioManager: AudioManager? = null
+    private var focusRequest: AudioFocusRequest? = null
+
+    companion object {
+        const val NOTIFICATION_ID = 1001
+        var isRunning = false
+            private set
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        acquireWakeLock()
+        requestAudioFocus()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val title = intent?.getStringExtra("EXTRA_TITLE") ?: "Zoya AI Assistant"
+        val content = intent?.getStringExtra("EXTRA_CONTENT") ?: "Listening in background"
+        val notification = createNotification(title, content)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val serviceType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST
+            }
+            startForeground(NOTIFICATION_ID, notification, serviceType)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+
+        isRunning = true
+        return START_STICKY
+    }
+
+    private fun createNotification(title: String, content: String): Notification {
+        val openAppIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            openAppIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        return NotificationCompat.Builder(this, ZoyaApplication.VOICE_SERVICE_CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+    }
+
+    private fun acquireWakeLock() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Zoya::VoiceServiceWakeLock").apply {
+            setReferenceCounted(false)
+            acquire(60 * 60 * 1000L)
+        }
+    }
+
+    private fun requestAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val playbackAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+
+            focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                .setAudioAttributes(playbackAttributes)
+                .build()
+
+            focusRequest?.let { audioManager?.requestAudioFocus(it) }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        isRunning = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && focusRequest != null) {
+            audioManager?.abandonAudioFocusRequest(focusRequest!!)
+        }
+        wakeLock?.let { if (it.isHeld) it.release() }
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+}`,
+  },
+  native_bridge: {
+    title: 'AndroidNativeBridge.kt',
+    filename: 'app/src/main/java/com/zoya/android/agent/bridge/AndroidNativeBridge.kt',
+    language: 'kotlin',
+    content: `package com.zoya.android.agent.bridge
+
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import android.webkit.JavascriptInterface
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import com.zoya.android.agent.security.NativeActionGateway
+import com.zoya.android.agent.services.ZoyaAccessibilityService
+import com.zoya.android.agent.services.ZoyaForegroundService
+import org.json.JSONObject
+
+class AndroidNativeBridge(
+    private val context: Context,
+    private val actionGateway: NativeActionGateway
+) {
+    @JavascriptInterface
+    fun getAndroidApiLevel(): Int = Build.VERSION.SDK_INT
+
+    @JavascriptInterface
+    fun showToast(message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    @JavascriptInterface
+    fun isAccessibilityEnabled(): Boolean = ZoyaAccessibilityService.instance != null
+
+    @JavascriptInterface
+    fun startForegroundService(serviceType: String, title: String, content: String): Boolean {
+        return try {
+            val intent = Intent(context, ZoyaForegroundService::class.java).apply {
+                putExtra("EXTRA_TITLE", title)
+                putExtra("EXTRA_CONTENT", content)
+                putExtra("EXTRA_SERVICE_TYPE", serviceType)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun stopForegroundService(): Boolean {
+        return try {
+            val intent = Intent(context, ZoyaForegroundService::class.java)
+            context.stopService(intent)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun dispatchIntent(jsonString: String): Boolean {
+        return try {
+            val json = JSONObject(jsonString)
+            actionGateway.dispatchValidatedIntent(json)
+        } catch (e: Exception) {
+            false
+        }
+    }
+}`,
+  },
+  action_gateway: {
+    title: 'NativeActionGateway.kt',
+    filename: 'app/src/main/java/com/zoya/android/agent/security/NativeActionGateway.kt',
+    language: 'kotlin',
+    content: `package com.zoya.android.agent.security
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import org.json.JSONObject
+
+class NativeActionGateway(private val context: Context) {
+    fun dispatchValidatedIntent(json: JSONObject): Boolean {
+        val action = json.optString("action", Intent.ACTION_MAIN)
+        val packageName = json.optString("packageName", null)
+        val dataUri = json.optString("dataUri", null)
+
+        val intent = if (packageName != null && packageName.isNotEmpty()) {
+            context.packageManager.getLaunchIntentForPackage(packageName) ?: Intent(action).apply {
+                \`package\` = packageName
+            }
+        } else {
+            Intent(action)
+        }
+
+        if (dataUri != null && dataUri.isNotEmpty()) {
+            intent.data = Uri.parse(dataUri)
+        }
+
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+
+        return try {
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+}`,
+  },
   gradle: {
     title: 'build.gradle.kts',
     filename: 'app/build.gradle.kts',

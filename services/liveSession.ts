@@ -2,7 +2,7 @@ import { AudioRecorder } from './audioRecorder';
 import { AudioStreamer } from './audioStreamer';
 import { AssistantAction } from '../types';
 
-export type LiveSessionState = 'disconnected' | 'connecting' | 'listening' | 'speaking';
+export type LiveSessionState = 'disconnected' | 'connecting' | 'listening' | 'speaking' | 'error';
 
 export interface LiveSessionCallbacks {
   onStateChange?: (state: LiveSessionState) => void;
@@ -11,12 +11,14 @@ export interface LiveSessionCallbacks {
   onAction?: (action: AssistantAction) => void;
   onError?: (error: string) => void;
   onTurnComplete?: () => void;
+  onCalibrationComplete?: (noiseFloor: number, threshold: number) => void;
 }
 
 /**
  * LiveSession
  * Coordinates real-time bi-directional audio streaming (Audio-to-Audio only)
- * using WebSocket to the server's Gemini Live API session.
+ * using WebSocket to the server's Gemini Live API session with automatic reconnect,
+ * local fast-path interruption, and network recovery.
  */
 export class LiveSession {
   private ws: WebSocket | null = null;
@@ -28,6 +30,7 @@ export class LiveSession {
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 3;
   private reconnectTimer: any = null;
+  private isManuallyClosed: boolean = false;
 
   public callbacks: LiveSessionCallbacks = {};
 
@@ -47,8 +50,20 @@ export class LiveSession {
       }
     };
 
-    // Recorder audio chunk dispatch
-    this.recorder.onAudioChunk = (base64Chunk) => {
+    // Recorder audio chunk dispatch & fast-path interruption
+    this.recorder.onAudioChunk = (base64Chunk, isSpeech) => {
+      // Local fast-path interruption: If user speaks while assistant is actively playing speech, immediately cut off local audio
+      if (isSpeech && this.streamer.isPlaying()) {
+        this.streamer.stop();
+        this.setState('listening');
+        // Notify server of interruption if socket is open
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          try {
+            this.ws.send(JSON.stringify({ type: 'client_interrupted' }));
+          } catch (_) {}
+        }
+      }
+
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(
           JSON.stringify({
@@ -62,6 +77,22 @@ export class LiveSession {
     this.recorder.onError = (err) => {
       this.callbacks.onError?.(err);
     };
+
+    this.recorder.onCalibrationComplete = (noiseFloor, threshold) => {
+      this.callbacks.onCalibrationComplete?.(noiseFloor, threshold);
+    };
+
+    // Listen to network connectivity
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        if (!this.isManuallyClosed && this.state === 'disconnected') {
+          this.reconnect();
+        }
+      });
+      window.addEventListener('offline', () => {
+        this.callbacks.onError?.('Network connection lost.');
+      });
+    }
   }
 
   public setVoice(voice: string) {
@@ -121,6 +152,15 @@ export class LiveSession {
     };
   }
 
+  public getVadMetrics(): { noiseFloor: number; vadThreshold: number; currentRms: number; isCalibrated: boolean } {
+    return {
+      noiseFloor: this.recorder.getNoiseFloor(),
+      vadThreshold: this.recorder.getVadThreshold(),
+      currentRms: this.recorder.getCurrentRms(),
+      isCalibrated: this.recorder.isCalibrated(),
+    };
+  }
+
   /**
    * Connect to Gemini Live audio-to-audio session
    */
@@ -129,6 +169,13 @@ export class LiveSession {
       return true;
     }
 
+    if (!navigator.onLine) {
+      this.setState('error');
+      this.callbacks.onError?.('No internet connection available.');
+      return false;
+    }
+
+    this.isManuallyClosed = false;
     this.clearReconnect();
     this.setState('connecting');
 
@@ -162,26 +209,35 @@ export class LiveSession {
 
       this.ws.onerror = (err) => {
         console.error('LiveSession WebSocket error:', err);
-        this.callbacks.onError?.('Real-time voice stream error.');
       };
 
-      this.ws.onclose = () => {
-        this.handleDisconnect();
+      this.ws.onclose = (event) => {
+        this.handleDisconnect(event);
       };
 
       return true;
     } catch (err: any) {
       console.error('LiveSession connect failed:', err);
-      this.setState('disconnected');
+      this.setState('error');
       this.callbacks.onError?.(err?.message || 'Failed to start Live session');
       return false;
     }
+  }
+
+  private reconnect() {
+    if (this.isManuallyClosed || this.reconnectAttempts >= this.maxReconnectAttempts) return;
+    this.reconnectAttempts++;
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 5000);
+    this.reconnectTimer = setTimeout(() => {
+      this.connect();
+    }, delay);
   }
 
   /**
    * Handle Disconnect & Cleanup
    */
   public disconnect() {
+    this.isManuallyClosed = true;
     this.clearReconnect();
     if (this.ws) {
       try {
@@ -194,11 +250,19 @@ export class LiveSession {
     this.setState('disconnected');
   }
 
-  private handleDisconnect() {
+  private handleDisconnect(event?: CloseEvent) {
     this.ws = null;
     this.recorder.stop();
     this.streamer.stop();
-    this.setState('disconnected');
+    if (!this.isManuallyClosed) {
+      if (this.reconnectAttempts < this.maxReconnectAttempts && navigator.onLine) {
+        this.reconnect();
+      } else {
+        this.setState('disconnected');
+      }
+    } else {
+      this.setState('disconnected');
+    }
   }
 
   private clearReconnect() {
@@ -252,6 +316,7 @@ export class LiveSession {
         break;
 
       case 'error':
+        this.setState('error');
         this.callbacks.onError?.(data.error || 'Live Voice error occurred');
         break;
     }

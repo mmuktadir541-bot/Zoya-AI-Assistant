@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { TermuxExecutionRecord, CommandDangerLevel } from '../types';
 import { androidDeviceManager } from '../services/androidDeviceManager';
+import { termuxExecutionEngine } from '../services/termuxExecutionEngine';
 
 interface TermuxRunnerModalProps {
   isOpen: boolean;
@@ -45,12 +46,13 @@ export const TermuxRunnerModal: React.FC<TermuxRunnerModalProps> = ({
 }) => {
   const [command, setCommand] = useState<string>(initialCommand || 'termux-battery-status');
   const [history, setHistory] = useState<TermuxExecutionRecord[]>(() =>
-    androidDeviceManager.getTermuxHistory()
+    termuxExecutionEngine.getHistory()
   );
   const [activeRecord, setActiveRecord] = useState<TermuxExecutionRecord | null>(null);
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [termuxStatus, setTermuxStatus] = useState(termuxExecutionEngine.getStatus());
   const terminalEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -60,7 +62,8 @@ export const TermuxRunnerModal: React.FC<TermuxRunnerModalProps> = ({
   }, [initialCommand]);
 
   useEffect(() => {
-    setHistory(androidDeviceManager.getTermuxHistory());
+    setHistory(termuxExecutionEngine.getHistory());
+    setTermuxStatus(termuxExecutionEngine.getStatus());
   }, [isOpen]);
 
   useEffect(() => {
@@ -69,9 +72,9 @@ export const TermuxRunnerModal: React.FC<TermuxRunnerModalProps> = ({
 
   if (!isOpen) return null;
 
-  const safety = androidDeviceManager.evaluateCommandSafety(command);
+  const safety = termuxExecutionEngine.evaluateCommandSafety(command);
 
-  const handleRun = () => {
+  const handleRun = async () => {
     if (!command.trim()) return;
 
     if (safety.requiresConfirmation && !showConfirmDialog) {
@@ -82,16 +85,34 @@ export const TermuxRunnerModal: React.FC<TermuxRunnerModalProps> = ({
     setShowConfirmDialog(false);
     setIsExecuting(true);
 
-    setTimeout(() => {
-      const record = androidDeviceManager.executeTermuxCommand(command);
+    try {
+      const record = await termuxExecutionEngine.executeCommand(command);
       setActiveRecord(record);
-      setHistory(androidDeviceManager.getTermuxHistory());
+      setHistory(termuxExecutionEngine.getHistory());
       setIsExecuting(false);
 
       if (onSpeak) {
-        onSpeak(`টার্মাক্সে "${command}" কমান্ড সম্পন্ন হয়েছে। এক্সিট কোড ${record.exitCode}।`);
+        if (record.status === 'blocked') {
+          onSpeak(record.explanationBn || 'নিরাপত্তা কারণে কমান্ডটি ব্লক করা হয়েছে।');
+        } else if (record.status === 'completed') {
+          onSpeak(`টার্মাক্সে "${command}" কমান্ড সম্পন্ন হয়েছে। এক্সিট কোড ${record.exitCode}।`);
+        } else if (record.status === 'timeout') {
+          onSpeak('টার্মাক্স কমান্ডের সময়সীমা শেষ হয়েছে।');
+        } else {
+          onSpeak('টার্মাক্স কমান্ড সম্পন্ন করা যায়নি।');
+        }
       }
-    }, 450);
+    } catch (e: any) {
+      setIsExecuting(false);
+      setHistory(termuxExecutionEngine.getHistory());
+    }
+  };
+
+  const handleCancel = () => {
+    termuxExecutionEngine.cancelActiveCommand();
+    setIsExecuting(false);
+    setHistory(termuxExecutionEngine.getHistory());
+    if (onSpeak) onSpeak('কমান্ড বাতিল করা হয়েছে।');
   };
 
   const copyToClipboard = (text: string, id: string) => {

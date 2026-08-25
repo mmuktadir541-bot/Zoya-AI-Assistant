@@ -1,4 +1,5 @@
 import { ChatMessage } from '../types';
+import { memoryService } from './memoryService';
 
 export interface ChatResponse {
   reply: string;
@@ -10,6 +11,7 @@ export interface ChatResponse {
 export class GeminiClient {
   public static async sendMessage(message: string, history: ChatMessage[] = []): Promise<ChatResponse> {
     try {
+      const memoryContext = memoryService.getContextSummary();
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -17,6 +19,7 @@ export class GeminiClient {
         },
         body: JSON.stringify({
           message,
+          memoryContext,
           history: history.slice(-6).map(m => ({ sender: m.sender, text: m.text }))
         }),
       });

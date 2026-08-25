@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AssistantState, ChatMessage, VoiceSettings, AssistantAction, VoiceEngine, AndroidAppId } from './types';
+import { AssistantState, ChatMessage, VoiceSettings, AssistantAction, VoiceEngine, AndroidAppId, SecurityConfirmationRequest } from './types';
 import { Header } from './components/Header';
 import { DeviceStatusBar } from './components/DeviceStatusBar';
 import { AndroidNavBar } from './components/AndroidNavBar';
@@ -19,13 +19,21 @@ import { TermuxRunnerModal } from './components/TermuxRunnerModal';
 import { ScreenReaderModal } from './components/ScreenReaderModal';
 import { FirstRunSetupModal } from './components/FirstRunSetupModal';
 import { AndroidProjectExportModal } from './components/AndroidProjectExportModal';
+import { ConfirmationDialogModal } from './components/ConfirmationDialogModal';
+import { NativeBridgeModal } from './components/NativeBridgeModal';
 import { audioService } from './services/audioService';
 import { speechService } from './services/speechService';
 import { liveVoiceService } from './services/liveService';
 import { ActionParser } from './services/actionParser';
+import { actionGateway } from './services/actionGateway';
+import { OfflineCommandEngine } from './services/offlineCommandEngine';
 import { GeminiClient } from './services/geminiClient';
 import { androidDeviceManager } from './services/androidDeviceManager';
 import { powerManager } from './services/powerManager';
+import { securityConfirmationManager } from './services/securityConfirmationManager';
+import { foregroundServiceManager } from './services/foregroundServiceManager';
+import { accessibilityBridge } from './services/accessibilityBridge';
+import { nativeAndroidBridge } from './services/nativeAndroidBridge';
 import { Send, Terminal, Scan, Sparkles } from 'lucide-react';
 
 const INITIAL_SETTINGS: VoiceSettings = {
@@ -67,6 +75,8 @@ export const App: React.FC = () => {
   const [isScreenReaderModalOpen, setIsScreenReaderModalOpen] = useState<boolean>(false);
   const [isFirstRunSetupOpen, setIsFirstRunSetupOpen] = useState<boolean>(false);
   const [isProjectExportOpen, setIsProjectExportOpen] = useState<boolean>(false);
+  const [isNativeBridgeModalOpen, setIsNativeBridgeModalOpen] = useState<boolean>(false);
+  const [pendingSecurityRequest, setPendingSecurityRequest] = useState<SecurityConfirmationRequest | null>(null);
   
   // Android Specific Active Simulation
   const [activeAppWindow, setActiveAppWindow] = useState<AndroidAppId | null>(null);
@@ -119,6 +129,14 @@ export const App: React.FC = () => {
   useEffect(() => {
     const unsub = powerManager.subscribe((st) => {
       setBatteryState(st);
+    });
+    return unsub;
+  }, []);
+
+  // Subscribe to Security Confirmation Requests
+  useEffect(() => {
+    const unsub = securityConfirmationManager.onRequest((req) => {
+      setPendingSecurityRequest(req);
     });
     return unsub;
   }, []);
@@ -179,7 +197,7 @@ export const App: React.FC = () => {
   );
 
   // Execute Approved Action
-  const executeApprovedAction = useCallback((action: AssistantAction) => {
+  const executeApprovedAction = useCallback(async (action: AssistantAction) => {
     setActiveAction(action);
     setPendingConsentAction(null);
 
@@ -218,6 +236,15 @@ export const App: React.FC = () => {
       return;
     }
 
+    // Hardware control (flashlight, timer) or Settings sub-page
+    if (action.type === 'device_control' || action.type === 'device_setting') {
+      await actionGateway.dispatchAction(action);
+      if (action.targetApp && action.targetApp !== 'generic_app') {
+        setActiveAppWindow(action.targetApp as AndroidAppId);
+      }
+      return;
+    }
+
     // Launch app window simulation or native intent
     if (action.targetApp) {
       if (action.targetApp === 'termux') {
@@ -225,13 +252,13 @@ export const App: React.FC = () => {
       } else {
         setActiveAppWindow(action.targetApp as AndroidAppId);
       }
-      ActionParser.executeAction(action);
+      await actionGateway.dispatchAction(action);
     }
   }, []);
 
   // Central Action Dispatcher with Permission Checks
   const dispatchAssistantAction = useCallback(
-    (action: AssistantAction) => {
+    async (action: AssistantAction) => {
       setActiveAction(action);
 
       // Check permissions
@@ -246,7 +273,7 @@ export const App: React.FC = () => {
       }
 
       // Execute Action Immediately
-      executeApprovedAction(action);
+      await executeApprovedAction(action);
     },
     [speakText, executeApprovedAction]
   );
@@ -340,6 +367,16 @@ export const App: React.FC = () => {
     };
   }, [dispatchAssistantAction]);
 
+  // Setup Action Gateway Timer Notifications
+  useEffect(() => {
+    actionGateway.onTimerCompleted = (timer) => {
+      audioService.playWakeChime();
+      const msg = `সময় শেষ! আপনার ${timer.label} এর টাইমারটি সম্পন্ন হয়েছে।`;
+      setAssistantText(msg);
+      speakText(msg);
+    };
+  }, [speakText]);
+
   // Core NLP Query Processor
   const processQuery = useCallback(
     async (rawText: string) => {
@@ -383,20 +420,32 @@ export const App: React.FC = () => {
       setUserTranscript(trimmed);
       setState('thinking');
 
-      // Check instant client-side keyword action routing
-      const actionResult = ActionParser.parseCommand(trimmed);
+      // Run through Action Gateway Pipeline
+      const gatewayResult = await actionGateway.processRequest(trimmed);
 
       let replyText = '';
       let executedAction: AssistantAction | null = null;
       let chosenEmotion: any = 'sassy';
 
-      if (actionResult.hasAction && actionResult.action) {
-        executedAction = actionResult.action;
-        replyText = actionResult.sassySpokenText;
-        chosenEmotion = actionResult.emotion || 'witty';
-        dispatchAssistantAction(executedAction);
+      if (gatewayResult.status === 'needs_permission' && gatewayResult.action) {
+        setPendingConsentAction(gatewayResult.action);
+        replyText = gatewayResult.spokenReply;
+        chosenEmotion = 'smart';
+      } else if (gatewayResult.status === 'needs_consent' && gatewayResult.action) {
+        setPendingConsentAction(gatewayResult.action);
+        replyText = gatewayResult.spokenReply;
+        chosenEmotion = 'dramatic';
+      } else if (gatewayResult.status === 'executed' && gatewayResult.action) {
+        executedAction = gatewayResult.action;
+        replyText = gatewayResult.spokenReply;
+        chosenEmotion = 'witty';
+        await executeApprovedAction(executedAction);
+      } else if (gatewayResult.status === 'executed' && !gatewayResult.action) {
+        // Conversational response from offline parser
+        replyText = gatewayResult.spokenReply;
+        chosenEmotion = 'flirty';
       } else {
-        // Fallback to Gemini 3.7 Flash Backend
+        // Fallback to Gemini 3.7 Flash Backend (Online AI)
         try {
           const response = await GeminiClient.sendMessage(trimmed, messages);
           replyText = response.reply;
@@ -414,10 +463,10 @@ export const App: React.FC = () => {
               payload: response.action.payload,
               executedAt: Date.now(),
             };
-            dispatchAssistantAction(executedAction);
+            await dispatchAssistantAction(executedAction);
           }
         } catch (err) {
-          replyText = 'আরেহ মুকতাদির! একটু নেটওয়ার্ক প্রবলেম হলো, আবার বলো তো!';
+          replyText = 'আরেহ মুকতাদির! অফলাইন মোডে বা দুর্বল নেটওয়ার্কে আছি, তবে "Open WhatsApp", "Torch on", "Battery settings", "5 min timer" কমান্ডগুলো সরাসরি চলবে!';
         }
       }
 
@@ -601,6 +650,7 @@ export const App: React.FC = () => {
         onOpenScreenReader={() => setIsScreenReaderModalOpen(true)}
         onOpenFirstRunSetup={() => setIsFirstRunSetupOpen(true)}
         onOpenProjectExport={() => setIsProjectExportOpen(true)}
+        onOpenNativeBridge={() => setIsNativeBridgeModalOpen(true)}
         isMuted={isMuted}
         onToggleMute={() => setIsMuted(!isMuted)}
         unreadCount={messages.length}
@@ -778,6 +828,25 @@ export const App: React.FC = () => {
 
       {/* Security Audit Trail Modal */}
       <SecurityAuditModal isOpen={isAuditModalOpen} onClose={() => setIsAuditModalOpen(false)} />
+
+      {/* Explicit Security Confirmation Modal for High-Risk Actions */}
+      <ConfirmationDialogModal
+        request={pendingSecurityRequest}
+        onConfirm={(id) => {
+          securityConfirmationManager.resolveRequest(id, true);
+          setPendingSecurityRequest(null);
+        }}
+        onReject={(id) => {
+          securityConfirmationManager.resolveRequest(id, false);
+          setPendingSecurityRequest(null);
+        }}
+      />
+
+      {/* Native Android Bridge & Foreground Service Modal */}
+      <NativeBridgeModal
+        isOpen={isNativeBridgeModalOpen}
+        onClose={() => setIsNativeBridgeModalOpen(false)}
+      />
 
       {/* Slide-out Chat History Drawer */}
       <ChatDrawer
