@@ -44,7 +44,11 @@ class AudioService {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-        }
+          googEchoCancellation: true,
+          googAutoGainControl: true,
+          googNoiseSuppression: true,
+          googHighpassFilter: true,
+        } as any
       });
       this.micStream = stream;
       if (this.ctx && this.analyser) {

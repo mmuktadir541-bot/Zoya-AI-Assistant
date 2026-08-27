@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, User, Bot, ExternalLink } from 'lucide-react';
+import { Sparkles, User, Bot, ExternalLink, X } from 'lucide-react';
 import { AssistantAction } from '../types';
 
 interface SubtitleOverlayProps {
@@ -10,6 +10,7 @@ interface SubtitleOverlayProps {
   emotion?: string;
   activeAction?: AssistantAction | null;
   onExecuteAction?: (action: AssistantAction) => void;
+  onDismiss?: () => void;
 }
 
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
@@ -20,6 +21,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   emotion,
   activeAction,
   onExecuteAction,
+  onDismiss,
 }) => {
   if (!userTranscript && !assistantText && !isListening) {
     return null;
@@ -48,6 +50,18 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       className="w-full max-w-2xl mx-auto px-4 z-20 pointer-events-auto transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
     >
       <div className="relative rounded-2xl bg-slate-950/70 backdrop-blur-xl border border-slate-800/80 shadow-2xl p-4 sm:p-5 overflow-hidden">
+        {/* Close / Dismiss Button */}
+        {onDismiss && (assistantText || userTranscript) && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            title="লেখা সরান (Dismiss)"
+            className="absolute top-3 right-3 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer z-10"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+
         {/* Glow Accent Stripe */}
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500" />
 
@@ -83,9 +97,11 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-[11px] font-mono text-pink-300 font-bold tracking-wider">ZOYA</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${badge.color}`}>
-                  {badge.label}
-                </span>
+                {emotion === 'roasting' && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-amber-500/20 text-amber-300 border-amber-500/30">
+                    ROAST MODE 🔥
+                  </span>
+                )}
               </div>
               <p className="text-base sm:text-lg font-medium text-white leading-relaxed tracking-wide">
                 {assistantText}

@@ -8,7 +8,6 @@ import { PermissionConsentModal } from './components/PermissionConsentModal';
 import { AndroidAppModal } from './components/AndroidAppModal';
 import { SecurityAuditModal } from './components/SecurityAuditModal';
 import { AccessibilityOverlay } from './components/AccessibilityOverlay';
-import { Visualizer } from './components/Visualizer';
 import { MicButton } from './components/MicButton';
 import { SubtitleOverlay } from './components/SubtitleOverlay';
 import { QuickPrompts } from './components/QuickPrompts';
@@ -21,6 +20,8 @@ import { FirstRunSetupModal } from './components/FirstRunSetupModal';
 import { AndroidProjectExportModal } from './components/AndroidProjectExportModal';
 import { ConfirmationDialogModal } from './components/ConfirmationDialogModal';
 import { NativeBridgeModal } from './components/NativeBridgeModal';
+import { VisionCamera } from './components/VisionCamera';
+import { LoveRobotFullScreenOverlay } from './components/LoveRobotFullScreenOverlay';
 import { audioService } from './services/audioService';
 import { speechService } from './services/speechService';
 import { liveVoiceService } from './services/liveService';
@@ -34,7 +35,8 @@ import { securityConfirmationManager } from './services/securityConfirmationMana
 import { foregroundServiceManager } from './services/foregroundServiceManager';
 import { accessibilityBridge } from './services/accessibilityBridge';
 import { nativeAndroidBridge } from './services/nativeAndroidBridge';
-import { Send, Terminal, Scan, Sparkles } from 'lucide-react';
+import { Send, Terminal, Scan, Sparkles, Heart, AlertCircle, MicOff, RefreshCw } from 'lucide-react';
+import robotBgImage from './src/assets/images/love_robot_bg_1787787767263.jpg';
 
 const INITIAL_SETTINGS: VoiceSettings = {
   voiceEngine: 'live',
@@ -76,6 +78,8 @@ export const App: React.FC = () => {
   const [isFirstRunSetupOpen, setIsFirstRunSetupOpen] = useState<boolean>(false);
   const [isProjectExportOpen, setIsProjectExportOpen] = useState<boolean>(false);
   const [isNativeBridgeModalOpen, setIsNativeBridgeModalOpen] = useState<boolean>(false);
+  const [isVisionCameraOpen, setIsVisionCameraOpen] = useState<boolean>(false);
+  const [isFullScreenRobotBg, setIsFullScreenRobotBg] = useState<boolean>(true);
   const [pendingSecurityRequest, setPendingSecurityRequest] = useState<SecurityConfirmationRequest | null>(null);
   
   // Android Specific Active Simulation
@@ -87,6 +91,7 @@ export const App: React.FC = () => {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [hasApiKey, setHasApiKey] = useState<boolean>(false);
   const [isLiveConnected, setIsLiveConnected] = useState<boolean>(false);
+  const [micErrorMessage, setMicErrorMessage] = useState<string | null>(null);
   
   const [settings, setSettings] = useState<VoiceSettings>(() => {
     try {
@@ -150,12 +155,12 @@ export const App: React.FC = () => {
     const welcomeMsg: ChatMessage = {
       id: 'msg_welcome',
       sender: 'zoya',
-      text: 'হাই মুকতাদির! আমি জয়া (Zoya), তোমার লোকাল অ্যান্ড্রয়েড মোবাইল ও টার্মাক্স অটোমেশন এজেন্ট। মাইক্রোফোনে বলো—"Termux খোলো", "স্ক্রিনে যা আছে পড়ে শোনাও", বা "এই অ্যাপে কাজ করো"—স্পষ্ট অনুমতি পেলে তবেই কাজ করবো!',
+      text: 'আরে মুক্তাদির! খিতা খবর কও? আমি জয়া (Zoya), কাছাড়ের খাঁটি ভাষায় কথা কওয়ার লাগি পুরাপুরি রেডি আছি। কিতা করতে লাগবো কও—"গান বাজা", "ইউটিউব খোল", "খিতা খবর?" বা যা ইচ্ছা মাতো!',
       timestamp: Date.now(),
       emotion: 'flirty',
     };
     setMessages([welcomeMsg]);
-    setAssistantText(welcomeMsg.text);
+    setAssistantText('');
     setActiveEmotion('flirty');
   }, []);
 
@@ -208,6 +213,37 @@ export const App: React.FC = () => {
       setTimeout(() => setIsAccessibilityActive(false), 2400);
     }
 
+    // Direct Web / App Launchers (Direct execution on user voice/text command)
+    if (action.url) {
+      try {
+        window.open(action.url, '_blank', 'noopener,noreferrer');
+      } catch (e) {}
+    } else if (action.type === 'youtube') {
+      const q = action.payload?.query || 'Bangla Lofi Chill Beats';
+      const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+      try {
+        window.open(ytUrl, '_blank', 'noopener,noreferrer');
+      } catch (e) {}
+    } else if (action.type === 'spotify') {
+      const q = action.payload?.query || '';
+      const spUrl = q ? `https://open.spotify.com/search/${encodeURIComponent(q)}` : 'https://open.spotify.com';
+      try {
+        window.open(spUrl, '_blank', 'noopener,noreferrer');
+      } catch (e) {}
+    } else if (action.type === 'maps') {
+      const dest = action.payload?.destination || 'Dhaka';
+      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest)}`;
+      try {
+        window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+      } catch (e) {}
+    } else if (action.type === 'search_info' || action.type === 'google' || (action.type === 'open_app' && action.targetApp === 'chrome')) {
+      const q = action.payload?.query || '';
+      const searchUrl = q ? `https://www.google.com/search?q=${encodeURIComponent(q)}` : 'https://www.google.com';
+      try {
+        window.open(searchUrl, '_blank', 'noopener,noreferrer');
+      } catch (e) {}
+    }
+
     if (action.type === 'termux_run') {
       if (action.payload?.command) {
         setTermuxInitialCommand(action.payload.command);
@@ -239,9 +275,6 @@ export const App: React.FC = () => {
     // Hardware control (flashlight, timer) or Settings sub-page
     if (action.type === 'device_control' || action.type === 'device_setting') {
       await actionGateway.dispatchAction(action);
-      if (action.targetApp && action.targetApp !== 'generic_app') {
-        setActiveAppWindow(action.targetApp as AndroidAppId);
-      }
       return;
     }
 
@@ -249,30 +282,29 @@ export const App: React.FC = () => {
     if (action.targetApp) {
       if (action.targetApp === 'termux') {
         setIsTermuxModalOpen(true);
-      } else {
-        setActiveAppWindow(action.targetApp as AndroidAppId);
       }
       await actionGateway.dispatchAction(action);
     }
   }, []);
 
-  // Central Action Dispatcher with Permission Checks
+  // Central Action Dispatcher with Immediate Execution (No annoying permission prompts for normal apps)
   const dispatchAssistantAction = useCallback(
     async (action: AssistantAction) => {
       setActiveAction(action);
 
-      // Check permissions
-      const permCheck = androidDeviceManager.checkActionPermission(action);
-
-      if (!permCheck.allowed || action.requiresExplicitConsent) {
-        setPendingConsentAction(action);
-        const reason = permCheck.reasonBn || `${action.titleBn || action.title} চালানোর জন্য অনুমতি প্রয়োজন।`;
-        setAssistantText(reason);
-        speakText(reason);
-        return;
+      // Only check permissions if strictly forced by user setting AND action is destructive
+      if (settingsRef.current.requireExplicitApprovalForApps && action.requiresExplicitConsent) {
+        const permCheck = androidDeviceManager.checkActionPermission(action);
+        if (!permCheck.allowed) {
+          setPendingConsentAction(action);
+          const reason = permCheck.reasonBn || `${action.titleBn || action.title} চালানোর জন্য অনুমতি প্রয়োজন।`;
+          setAssistantText(reason);
+          speakText(reason);
+          return;
+        }
       }
 
-      // Execute Action Immediately
+      // Execute Action Immediately without annoying prompts
       await executeApprovedAction(action);
     },
     [speakText, executeApprovedAction]
@@ -356,6 +388,9 @@ export const App: React.FC = () => {
       },
       onError: (err) => {
         console.warn('Live voice event error:', err);
+        if (typeof err === 'string' && (err.includes('Microphone') || err.includes('permission') || err.includes('denied') || err.includes('not allowed'))) {
+          setMicErrorMessage('মাইক্রোফোন পারমিশন এলাউ (Allow) করা নাই। ব্রাউজারের সাইট সেটিংসে গিয়ে Microphone Allow করুন।');
+        }
       },
       onTurnComplete: () => {
         setState('listening');
@@ -491,6 +526,52 @@ export const App: React.FC = () => {
     [messages, speakText, pendingConsentAction, dispatchAssistantAction]
   );
 
+  // Vision Query Processor (Screenshots / Photos / Live Camera Snaps)
+  const processVisionQuery = useCallback(
+    async (text: string, imageBase64: string) => {
+      const trimmed = text.trim() || 'এই ছবিতে কী দেখতে পাচ্ছ? কাছাড়ের ভাষায় বুঝিয়ে বলো।';
+
+      // Add user message with image preview to conversation
+      const userMsg: ChatMessage = {
+        id: `msg_${Date.now()}_u`,
+        sender: 'user',
+        text: trimmed,
+        image: imageBase64,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      setUserTranscript(trimmed);
+      setState('thinking');
+      setAssistantText('ছবিখানা দেখিয়া ভাবিয়া কইরাম...');
+
+      try {
+        const response = await GeminiClient.sendMessage(trimmed, messages, imageBase64);
+        const replyText = response.reply;
+        const chosenEmotion = response.emotion || 'smart';
+
+        setAssistantText(replyText);
+        setActiveEmotion(chosenEmotion);
+
+        const zoyaMsg: ChatMessage = {
+          id: `msg_${Date.now()}_z`,
+          sender: 'zoya',
+          text: replyText,
+          timestamp: Date.now(),
+          emotion: chosenEmotion,
+        };
+        setMessages((prev) => [...prev, zoyaMsg]);
+
+        // Speak aloud
+        speakText(replyText);
+      } catch (err) {
+        const errorReply = 'হায়রে! ছবিটা বিশ্লেষণ করতে গিয়া নেটওয়ার্কে একটু ঝামেলা অইছে। আরেকবার ট্রাই করো!';
+        setAssistantText(errorReply);
+        speakText(errorReply);
+      }
+    },
+    [messages, speakText]
+  );
+
   // Setup Standard Speech Recognition Listeners
   useEffect(() => {
     if (settings.voiceEngine !== 'standard') return;
@@ -531,6 +612,7 @@ export const App: React.FC = () => {
 
   // Central Mic Button Click Handler
   const handleMicToggle = useCallback(async () => {
+    setMicErrorMessage(null);
     audioService.init();
 
     // LIVE VOICE ENGINE MODE
@@ -622,10 +704,29 @@ export const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans select-none">
+      {/* Full-Screen Ultra-Cute Robot Background Wallpaper */}
+      {isFullScreenRobotBg && (
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none transition-all duration-700">
+          <img
+            src={robotBgImage}
+            alt="Love Robot Full Screen Wallpaper"
+            className="w-full h-full object-cover object-center scale-105 filter brightness-95 contrast-105 animate-in fade-in duration-700"
+          />
+          {/* Subtle Ambient Gradients for perfect UI text contrast */}
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-slate-950/80" />
+          <div className="absolute inset-0 bg-pink-950/15 mix-blend-overlay" />
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-pink-500/20 rounded-full blur-3xl" />
+        </div>
+      )}
+
       {/* Dynamic Ambient Background Glows */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-pink-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-600/5 rounded-full blur-3xl pointer-events-none" />
+      {!isFullScreenRobotBg && (
+        <>
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-pink-600/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-600/5 rounded-full blur-3xl pointer-events-none" />
+        </>
+      )}
 
       {/* Android Device Status Bar */}
       <DeviceStatusBar
@@ -648,6 +749,9 @@ export const App: React.FC = () => {
         onRoastCreator={() => setIsRoastModalOpen(true)}
         onOpenTermux={() => setIsTermuxModalOpen(true)}
         onOpenScreenReader={() => setIsScreenReaderModalOpen(true)}
+        onOpenVisionCamera={() => setIsVisionCameraOpen(true)}
+        isFullScreenRobotBg={isFullScreenRobotBg}
+        onToggleFullScreenRobotBg={() => setIsFullScreenRobotBg(!isFullScreenRobotBg)}
         onOpenFirstRunSetup={() => setIsFirstRunSetupOpen(true)}
         onOpenProjectExport={() => setIsProjectExportOpen(true)}
         onOpenNativeBridge={() => setIsNativeBridgeModalOpen(true)}
@@ -668,10 +772,15 @@ export const App: React.FC = () => {
             emotion={activeEmotion}
             activeAction={activeAction}
             onExecuteAction={(act) => dispatchAssistantAction(act)}
+            onDismiss={() => {
+              setAssistantText('');
+              setUserTranscript('');
+              setActiveAction(null);
+            }}
           />
         </div>
 
-        {/* Center: Glowing Siri / Gemini Visualizer Canvas or Android App Drawer */}
+        {/* Center: Full-Screen Interactive Love Robot & Android Apps */}
         {isAppDrawerOpen ? (
           <div className="w-full max-w-xl my-auto animate-fadeIn">
             <AndroidAppDrawer
@@ -680,31 +789,65 @@ export const App: React.FC = () => {
             />
           </div>
         ) : (
-          <div className="relative w-full max-w-lg h-44 sm:h-64 flex flex-col items-center justify-center my-auto">
-            <Visualizer
-              state={state}
-              theme={settings.visualizerTheme}
-              isPowerSaving={batteryState.isPowerSavingActive}
-            />
-
-            {/* Power Saving Active Reassurance Indicator */}
-            {batteryState.isPowerSavingActive && (
-              <button
-                type="button"
-                onClick={() => setIsSettingsOpen(true)}
-                className="absolute bottom-2 flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/85 backdrop-blur-md border border-amber-500/40 text-[10px] text-amber-300 shadow-lg shadow-black/40 hover:bg-slate-800 transition-colors pointer-events-auto cursor-pointer animate-fadeIn"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                <span className="font-medium">Intelligent Power Mode (22 FPS • Voice Wake 100% Active)</span>
-              </button>
-            )}
-          </div>
+          <LoveRobotFullScreenOverlay
+            state={state}
+            emotion={activeEmotion}
+            isAudioPlaying={state === 'speaking'}
+            userTranscript={userTranscript}
+            assistantText={assistantText}
+            onPoke={() => {
+              const cuteResponses = [
+                'হিহিহি! আমি তোমার রোবট জয়া! কী কাম করমু কও?',
+                'আমারে আদর করছো? তুমি এত ভালা কেনে গো! লাভ ইউ 💖',
+                'হিহিহি! কাতুকুতু লাগে তো! মাতো শুনি কী খবর?',
+                'রোবট জয়া রেডি! যেকনুক কাজ থাকলে হুকুম করো!',
+              ];
+              const pick = cuteResponses[Math.floor(Math.random() * cuteResponses.length)];
+              setActiveEmotion('flirty');
+              setAssistantText(pick);
+              speakText(pick);
+            }}
+          />
         )}
 
-        {/* Bottom Section: Text Command Input, Central Mic Button & Quick Prompts */}
-        <div className="w-full flex flex-col items-center gap-2.5 pb-2">
-          {/* Quick Natural Language Text Input Box */}
-          <div className="w-full max-w-md flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-800 focus-within:border-indigo-500 shadow-lg">
+        {/* Bottom Section: Text Command Input & Central Mic Button */}
+        <div className="w-full flex flex-col items-center gap-3 pb-3">
+          {/* Microphone Permission Prompt / Error Banner */}
+          {micErrorMessage && (
+            <div className="w-full max-w-sm px-3 py-2 rounded-xl bg-rose-950/80 border border-rose-600/50 backdrop-blur-md flex items-center justify-between gap-2 text-rose-200 text-xs shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="flex items-center gap-2">
+                <MicOff className="w-4 h-4 text-rose-400 shrink-0" />
+                <span className="leading-tight">{micErrorMessage}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleMicToggle}
+                className="shrink-0 px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[10px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Retry</span>
+              </button>
+            </div>
+          )}
+
+          <MicButton
+            state={state}
+            voiceEngine={settings.voiceEngine}
+            isLiveConnected={isLiveConnected}
+            onClick={handleMicToggle}
+          />
+
+          {/* Clean Quick Input Box with Vision / Screenshot Camera Trigger */}
+          <div className="w-full max-w-sm flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-800 focus-within:border-indigo-500 shadow-lg">
+            <button
+              type="button"
+              onClick={() => setIsVisionCameraOpen(true)}
+              title="স্ক্রিনশট দিন বা ক্যামেরা অন করে আমাকে দেখান"
+              className="p-1.5 rounded-xl text-pink-400 hover:text-pink-300 hover:bg-pink-950/40 transition-colors cursor-pointer"
+            >
+              <Scan className="w-4 h-4" />
+            </button>
+
             <input
               id="main-natural-input"
               type="text"
@@ -716,7 +859,7 @@ export const App: React.FC = () => {
                   setMainInputText('');
                 }
               }}
-              placeholder="মুখে বলুন বা লিখুন: 'Termux খোলো', 'স্ক্রিন পড়ো'..."
+              placeholder="মুখে বলুন বা লিখুন..."
               className="flex-1 bg-transparent text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none"
             />
             <button
@@ -729,20 +872,11 @@ export const App: React.FC = () => {
                   setMainInputText('');
                 }
               }}
-              className="p-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 transition-colors"
+              className="p-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 transition-colors cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
             </button>
           </div>
-
-          <MicButton
-            state={state}
-            voiceEngine={settings.voiceEngine}
-            isLiveConnected={isLiveConnected}
-            onClick={handleMicToggle}
-          />
-
-          <QuickPrompts onSelectPrompt={handleSelectPrompt} disabled={state === 'thinking'} />
         </div>
       </main>
 
@@ -868,6 +1002,14 @@ export const App: React.FC = () => {
         onUpdateSettings={(newVals) => setSettings((prev) => ({ ...prev, ...newVals }))}
         hasApiKey={hasApiKey}
         onOpenAuditLogs={() => setIsAuditModalOpen(true)}
+      />
+
+      {/* Vision & Screenshot Camera Modal */}
+      <VisionCamera
+        isOpen={isVisionCameraOpen}
+        onClose={() => setIsVisionCameraOpen(false)}
+        onSendWithImage={processVisionQuery}
+        isLiveActive={settings.voiceEngine === 'live' && isLiveConnected}
       />
 
       {/* Roast Muktadir Modal */}

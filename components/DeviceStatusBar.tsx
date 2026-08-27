@@ -61,55 +61,33 @@ export const DeviceStatusBar: React.FC<DeviceStatusBarProps> = ({ state, isLiveC
   return (
     <div
       id="android-status-bar"
-      className="w-full h-8 px-4 flex items-center justify-between text-[11px] font-medium text-slate-300 select-none bg-slate-950/70 backdrop-blur-md border-b border-slate-800/40 z-30"
+      className="w-full h-7 px-4 flex items-center justify-between text-[11px] font-medium text-slate-400 select-none bg-slate-950/80 backdrop-blur-md border-b border-slate-900 z-30"
     >
-      {/* Left: Clock & Carrier */}
+      {/* Left: Clock */}
       <div className="flex items-center gap-2">
-        <span className="font-semibold text-slate-200 tracking-tight">{time || '10:45 AM'}</span>
-        <span className="text-slate-600 hidden sm:inline">•</span>
-        <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">5G GP</span>
+        <span className="font-semibold text-slate-300 tracking-tight">{time || '10:45 AM'}</span>
       </div>
 
-      {/* Center: Dynamic Island / Privacy Pill */}
+      {/* Center: Subtle active indicator */}
       {isMicActive && (
-        <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/40 text-[10px] text-emerald-300 animate-pulse">
+        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-[10px] text-emerald-400 animate-pulse">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-          <span className="font-mono">
-            {state === 'speaking' ? 'Zoya Speaking' : 'Live Mic Active'}
-          </span>
+          <span>{state === 'speaking' ? 'Speaking' : 'Mic Active'}</span>
         </div>
       )}
 
-      {/* Right: Connectivity & Battery & Intelligent Power Mode Badge */}
-      <div className="flex items-center gap-2 text-slate-300">
-        <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
-          <Shield className="w-3 h-3 text-cyan-400" />
-          <span className="hidden sm:inline">Secured</span>
-        </div>
-
-        {/* Intelligent Power Mode Eco Badge */}
-        {batteryState.isPowerSavingActive && (
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            title="Intelligent Power Mode Active (Animations Reduced, Wake-Word Maintained)"
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-950/60 border border-amber-500/40 text-[9px] font-bold text-amber-300 hover:bg-amber-900/60 transition-colors"
-          >
-            <Leaf className="w-2.5 h-2.5 text-amber-400" />
-            <span>ECO</span>
-          </button>
-        )}
-
-        <Wifi className="w-3.5 h-3.5 text-slate-300" />
+      {/* Right: Wifi & Battery */}
+      <div className="flex items-center gap-2.5 text-slate-400">
+        <Wifi className="w-3.5 h-3.5 text-slate-400" />
 
         {/* Battery Indicator with Click to Open Settings */}
         <button
           type="button"
           onClick={onOpenSettings}
-          title={`Battery: ${batteryState.level}% ${batteryState.isCharging ? '(Charging)' : ''} - Click to manage Power Mode`}
-          className="flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer"
+          title={`Battery: ${batteryState.level}%`}
+          className="flex items-center gap-1 hover:text-slate-200 transition-colors cursor-pointer"
         >
-          <span className={`text-[10px] font-mono ${batteryState.level <= batteryState.lowBatteryThreshold ? 'text-rose-400 font-bold' : 'text-slate-300'}`}>
+          <span className={`text-[10px] font-mono ${batteryState.level <= batteryState.lowBatteryThreshold ? 'text-rose-400 font-bold' : 'text-slate-400'}`}>
             {batteryState.level}%
           </span>
           {getBatteryIcon()}

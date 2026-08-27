@@ -238,6 +238,7 @@ export interface ChatMessage {
   sender: 'user' | 'zoya' | 'system';
   text: string;
   timestamp: number;
+  image?: string; // base64 or object URL for screenshot/photo
   action?: AssistantAction;
   emotion?: 'sassy' | 'flirty' | 'witty' | 'dramatic' | 'smart' | 'roasting' | 'neutral';
   isAudioPlaying?: boolean;

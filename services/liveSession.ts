@@ -352,6 +352,22 @@ export class LiveSession {
     }
   }
 
+  /**
+   * Streams a camera video frame or screenshot to the Live API in real-time
+   */
+  public sendImageFrame(base64Image: string, mimeType: string = 'image/jpeg') {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      const cleanBase64 = base64Image.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
+      this.ws.send(
+        JSON.stringify({
+          type: 'realtime_image',
+          image: cleanBase64,
+          mimeType,
+        })
+      );
+    }
+  }
+
   private setState(newState: LiveSessionState) {
     if (this.state !== newState) {
       this.state = newState;

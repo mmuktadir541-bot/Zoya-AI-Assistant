@@ -21,7 +21,7 @@ export const MicButton: React.FC<MicButtonProps> = ({
     if (state === 'error') {
       return {
         icon: <AlertCircle className="w-8 h-8 text-white animate-pulse" />,
-        label: 'Error occurred • Tap to retry',
+        label: 'সমস্যা অইছে • আবার চাপ দেও',
         ringColor: 'border-red-500 shadow-red-500/50',
         bgColor: 'bg-gradient-to-tr from-red-600 via-rose-600 to-amber-600',
       };
@@ -30,7 +30,7 @@ export const MicButton: React.FC<MicButtonProps> = ({
     if (state === 'executing') {
       return {
         icon: <PlayCircle className="w-8 h-8 text-white animate-spin" />,
-        label: 'Executing Android Action...',
+        label: 'কাজ করিয়া দিরাম...',
         ringColor: 'border-amber-400 shadow-amber-400/50',
         bgColor: 'bg-gradient-to-tr from-amber-500 via-orange-600 to-purple-600',
       };
@@ -40,7 +40,7 @@ export const MicButton: React.FC<MicButtonProps> = ({
       if (state === 'speaking') {
         return {
           icon: <Volume2 className="w-8 h-8 text-white animate-bounce" />,
-          label: 'Zoya Live Speaking (Interrupt anytime)',
+          label: 'জয়া মাতের (থামাইতে চাপ দেও)',
           ringColor: 'border-cyan-400 shadow-cyan-400/50',
           bgColor: 'bg-gradient-to-tr from-cyan-500 via-teal-500 to-indigo-600',
         };
@@ -48,7 +48,7 @@ export const MicButton: React.FC<MicButtonProps> = ({
       if (state === 'listening' || isLiveConnected) {
         return {
           icon: <Mic className="w-8 h-8 text-white animate-pulse" />,
-          label: 'Live Audio Streaming • Speak naturally',
+          label: 'আমি হুনরাম • মাতো',
           ringColor: 'border-emerald-400 shadow-emerald-400/50',
           bgColor: 'bg-gradient-to-tr from-emerald-600 via-pink-600 to-indigo-600',
         };
@@ -56,14 +56,14 @@ export const MicButton: React.FC<MicButtonProps> = ({
       if (state === 'thinking') {
         return {
           icon: <Loader2 className="w-8 h-8 text-white animate-spin" />,
-          label: 'Connecting to Gemini Live...',
+          label: 'কানেক্ট অইরাম...',
           ringColor: 'border-purple-500 shadow-purple-500/50',
           bgColor: 'bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-500',
         };
       }
       return {
         icon: <Zap className="w-8 h-8 text-amber-300" />,
-        label: 'Tap to Start Gemini Live Voice',
+        label: 'লাইভ ভয়েস শুরু করো',
         ringColor: 'border-pink-500/60 shadow-pink-500/30',
         bgColor: 'bg-gradient-to-tr from-pink-600 via-purple-600 to-indigo-600',
       };
@@ -73,21 +73,21 @@ export const MicButton: React.FC<MicButtonProps> = ({
       case 'listening':
         return {
           icon: <Mic className="w-8 h-8 text-white animate-pulse" />,
-          label: 'Listening to you...',
+          label: 'আমি হুনরাম • মাতো',
           ringColor: 'border-pink-500 shadow-pink-500/50',
           bgColor: 'bg-gradient-to-tr from-pink-600 via-rose-500 to-amber-400',
         };
       case 'thinking':
         return {
           icon: <Loader2 className="w-8 h-8 text-white animate-spin" />,
-          label: 'Zoya is thinking...',
+          label: 'ভাবিয়া কইরাম...',
           ringColor: 'border-purple-500 shadow-purple-500/50',
           bgColor: 'bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-500',
         };
       case 'speaking':
         return {
           icon: <Volume2 className="w-8 h-8 text-white animate-bounce" />,
-          label: 'Zoya is speaking (Tap to stop)',
+          label: 'জয়া মাতের (থামাইতে চাপ দেও)',
           ringColor: 'border-cyan-400 shadow-cyan-400/50',
           bgColor: 'bg-gradient-to-tr from-cyan-500 via-teal-500 to-indigo-600',
         };
@@ -95,7 +95,7 @@ export const MicButton: React.FC<MicButtonProps> = ({
       default:
         return {
           icon: <Mic className="w-8 h-8 text-white" />,
-          label: 'Tap or Say "Hey Zoya"',
+          label: 'চাপ দেও বা কও "Hey Zoya"',
           ringColor: 'border-indigo-500/40 hover:border-pink-400 shadow-indigo-500/20',
           bgColor: 'bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500',
         };

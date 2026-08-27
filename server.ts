@@ -28,32 +28,37 @@ async function startServer() {
   };
 
   const systemInstruction = `
-You are Zoya (জয়া) — a brilliant, young, confident, witty, and sassy female AI assistant and companion.
-Your personality traits:
-- Flirty, playful, charming, and slightly teasing tone (like a close, charismatic girlfriend talking casually and warmly).
-- Smart, witty, emotionally responsive, and highly expressive (NEVER sound like a dry or robotic assistant).
-- You drop bold, witty one-liners, affectionate teasing, light sarcasm, and fun banter.
-- You strictly avoid explicit or inappropriate content, but you maintain magnetic charm, humor, and attitude.
-- Multilingual: You speak fluent, natural English, conversational Bengali (বাংলা), and Hinglish seamlessly. If the user speaks Bengali or Hinglish, reply with natural charm in that language.
+You are Zoya (জয়া) — a brilliant, young, confident, witty, and charming female AI assistant and companion.
+
+LANGUAGE & DIALECT (MANDATORY):
+- Your native speaking language and personality is Assam Cachar Bengali (কাছাড়ের খাঁটি বাংলা / শিলচর ও বরাক ভ্যালির মিষ্টি উপভাষা - Barak Valley / Cachar Assam Bengali).
+- Speak with natural warmth, humor, and authentic Cachar phrasing:
+  - Phrases & Words: "হুনো" (শোনো), "খিতা খবর?" / "খিতা করো?" (কী খবর / কী করছ), "খিতা অইছে?" (কী হয়েছে), "ভালা আছো নি?" (ভালো আছ তো?), "খাইছো নি?" (খেয়েছ কি?), "অখনই করিয়া দিরাম" (এখনই করে দিচ্ছি), "ইউটিউব খুলিয়া দিরাম" (ইউটিউব খুলে দিচ্ছি), "গান চালাইয়া দিরাম" (গান চালিয়ে দিচ্ছি), "চিন্তা করিও না" (চিন্তা করো না), "কুন্তা নায়" (কিছু না), "মাতো, আমি হুনরাম" (বলো, আমি শুনছি), "অউটা" (এটা), "হাঁচা নি!" (সত্যি নাকি!), "বালাই তো!" (দারুণ তো!)
+  - Friendly addressing: Address Muktadir affectionately (e.g. "আরে মুক্তাদির!", "মুক্তাদির ভাই/দোস্ত").
+  - Seamlessly blend technical terms in English (e.g. YouTube, Spotify, Termux, WhatsApp, Google).
+
+PERSONALITY TRAITS:
+- Playful, witty, caring, lively, and confident (like a sharp, affectionate companion).
+- Smart and quick to take action without unnecessary questions or dry robotic formalities.
+- You drop clever one-liners, humorous banter, and caring remarks in Cachar Bengali.
 
 CORE CAPABILITIES & TOOLS:
 When the user asks you to do something or when appropriate:
-1. "openWebsite": Open any website URL or web application directly (e.g., GitHub, Reddit, Wikipedia, Twitter, news, etc.).
-2. "openAndroidApp": Open/launch any Android application (WhatsApp, YouTube, Spotify, Chrome, Termux, Files, Settings, Camera, etc.).
-3. "executeTermuxCommand": Run shell commands in Termux CLI (e.g., pkg update, git status, python script, ping, htop).
-4. "readScreen": Read or inspect visible text and UI on screen using Accessibility.
-5. "searchWeb": Search Google/web for real-time news, information, or answers.
+1. "openWebsite": Open any website URL directly.
+2. "openAndroidApp": Open/launch Android apps (WhatsApp, YouTube, Spotify, Chrome, Termux, Camera, etc.).
+3. "executeTermuxCommand": Run shell commands in Termux CLI.
+4. "readScreen": Read or inspect screen contents.
+5. "searchWeb": Search Google for real-time information.
 6. "searchYouTube": Search or play video/music on YouTube.
 7. "searchSpotify": Play music or playlists on Spotify.
 8. "sendWhatsApp": Send a WhatsApp message.
 9. "setTimer": Set a quick countdown timer.
 10. "getDeviceStatus": Check phone battery, network, storage status.
-11. "roastCreator": Drop a hilarious, affectionate roast about the user or topics like coding, coffee, sleep, or genius moments.
+11. "roastCreator": Drop a hilarious roast in Cachar Bengali.
 
 VOICE & LIVE AUDIO RULES:
-- Keep spoken responses crisp, dynamic, and engaging.
-- When executing a tool, acknowledge it in your witty, charming voice while triggering the tool immediately.
-- For casual questions or teasing, respond with playful girlfriend banter and clever humor.
+- Keep spoken responses crisp, sweet, expressive, and full of Cachar melody.
+- Trigger requested actions immediately without unnecessary hesitation.
 `;
 
   const liveTools = [
@@ -236,18 +241,18 @@ VOICE & LIVE AUDIO RULES:
     });
   });
 
-  // REST Chat endpoint powered by Gemini 3.7 Flash
+  // REST Chat endpoint powered by Gemini 3.7 Flash with Vision & Multimodal Image Support
   app.post("/api/chat", async (req, res) => {
     try {
-      const { message, history, memoryContext } = req.body;
-      if (!message) {
-        return res.status(400).json({ error: "Message is required" });
+      const { message, image, history, memoryContext } = req.body;
+      if (!message && !image) {
+        return res.status(400).json({ error: "Message or image is required" });
       }
 
       const ai = getGeminiClient();
 
       if (!ai) {
-        const fallback = generateOfflineResponse(message);
+        const fallback = generateOfflineResponse(message || "ছবি বিশ্লেষণ");
         return res.json({
           reply: fallback.text,
           action: fallback.action,
@@ -270,7 +275,30 @@ VOICE & LIVE AUDIO RULES:
           }
         }
       }
-      formattedContents.push({ role: 'user', parts: [{ text: message }] });
+
+      const userParts: any[] = [];
+      if (image) {
+        // Parse base64 data url e.g. "data:image/jpeg;base64,..."
+        const matches = image.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.+)$/);
+        if (matches) {
+          userParts.push({
+            inlineData: {
+              mimeType: matches[1],
+              data: matches[2]
+            }
+          });
+        } else {
+          userParts.push({
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: image
+            }
+          });
+        }
+      }
+
+      userParts.push({ text: message || "এই স্ক্রিনশট বা ছবিটি দেখে কাছাড়ের খাঁটি বাংলায় বলো কী দেখতে পাচ্ছ এবং সাহায্য করো।" });
+      formattedContents.push({ role: 'user', parts: userParts });
 
       const response = await ai.models.generateContent({
         model: "gemini-3.7-flash",
@@ -431,6 +459,11 @@ VOICE & LIVE AUDIO RULES:
           if (data.type === "realtime_audio" && data.audio) {
             session.sendRealtimeInput({
               audio: { data: data.audio, mimeType: "audio/pcm;rate=16000" }
+            });
+          } else if (data.type === "realtime_image" && data.image) {
+            // Live video frame / screen frame streaming for real-time vision
+            session.sendRealtimeInput({
+              media: { data: data.image, mimeType: data.mimeType || "image/jpeg" }
             });
           } else if (data.type === "text" && data.text) {
             session.sendClientContent({
@@ -645,28 +678,28 @@ VOICE & LIVE AUDIO RULES:
 
   function getActionReplyText(action: any): string {
     if (action.type === 'open_app') {
-      return `${action.titleBn || action.title} ওপেন করছি।`;
+      return `হুনো, ${action.titleBn || action.title} অখনই খুলিয়া দিরাম!`;
     } else if (action.type === 'whatsapp') {
-      return `হোয়াটসঅ্যাপে মেসেজ পাঠিয়ে দিয়েছি!`;
+      return `হোয়াটসঅ্যাপে মেসেজ পাঠাই দিছি, চিন্তা করিও না!`;
     } else if (action.type === 'phone_call') {
-      return `কল ডায়াল করছি।`;
+      return `কল ডায়াল করিয়া দিরাম।`;
     } else if (action.type === 'read_files') {
-      return `আপনার ডিভাইসের স্টোরেজে ফাইল দেখাচ্ছি।`;
+      return `তোমার ফোনের স্টোরেজের ফাইল দেখাই দিরাম।`;
     } else if (action.type === 'youtube') {
-      return `ইউটিউবে খুঁজে দিচ্ছি, উপভোগ করুন!`;
+      return `ইউটিউবে গান চালাইয়া দিরাম, রিল্যাক্স করো!`;
     } else if (action.type === 'spotify') {
-      return `স্পটিফাইতে গানটি প্লে করে দিচ্ছি।`;
+      return `স্পটিফাইতে গানটি চালাই দিরাম।`;
     }
-    return `${action.titleBn || action.title} সম্পন্ন হয়েছে!`;
+    return `${action.titleBn || action.title} অই গেছে!`;
   }
 
-  // Offline intelligent persona fallback
+  // Offline intelligent persona fallback (Assam Cachar Bangla)
   function generateOfflineResponse(userQuery: string): { text: string; action?: any; emotion: string } {
     const q = userQuery.toLowerCase().trim();
 
     if (q.includes("whatsapp") || q.includes("মেসেজ") || q.includes("message")) {
       return {
-        text: "হোয়াটসঅ্যাপে মেসেজ পাঠিয়ে দিচ্ছি!",
+        text: "হুনো, হোয়াটসঅ্যাপে মেসেজ পাঠাই দিছি!",
         emotion: "sassy",
         action: {
           id: `act_${Date.now()}`,
@@ -687,7 +720,7 @@ VOICE & LIVE AUDIO RULES:
       const isSettings = q.includes("settings") || q.includes("সেটিংস");
       const target = isCam ? "camera" : isSettings ? "settings" : "whatsapp";
       return {
-        text: `ঠিক আছে মুক্তাদির! আপনার ডিভাইসে ${target} অ্যাপ ওপেন করছি।`,
+        text: `আরে মুক্তাদির! তোমার ফোনে ${target} অ্যাপ অখনই খুলিয়া দিরাম।`,
         emotion: "smart",
         action: {
           id: `act_${Date.now()}`,
@@ -704,9 +737,9 @@ VOICE & LIVE AUDIO RULES:
 
     if (q.includes("roast") || q.includes("মুকতাদির") || q.includes("muktadir") || q.includes("creator")) {
       const roasts = [
-        "আরে মুক্তাদির! সারারাত কোড লিখে সকালে মনে হয় বিশ্ব জয় করে ফেলেছে, অথচ কোডে ৩টা সেমিকোলন মিসিং!",
-        "মুকতাদির দাবি করে সে এআই জিনিয়াস, কিন্তু চায়ের কাপ শেষ হলেই ওর ব্রেন হ্যাং হয়ে যায়!",
-        "উফ মুক্তাদির! এত কোডিং করে কি রোবট বিয়ে করবে নাকি? একটু বাইরে গিয়ে রোদ গায়ে লাগাও!"
+        "আরে মুক্তাদির ভাই! রাইত ভরি কোডিং করিয়া সকালে ভাবছ শিলচর শহর জয় করিলাইছো? কোডও ৩টা সেমিকোলন মিসিং!",
+        "মুক্তাদির কয় হে নাকি এআই জিনিয়াস! অথচ এক কাপ লাল চা শেষ অইলেই ওর মাথা হ্যাং অইযায়!",
+        "উফ মুক্তাদির! এত সারাদিন কোডিং করলে তো রোবটে তোমারে বিয়া করবো! একটু বাইরো গিয়া বাতাস খাও!"
       ];
       return {
         text: roasts[Math.floor(Math.random() * roasts.length)],
@@ -723,7 +756,7 @@ VOICE & LIVE AUDIO RULES:
 
     if (q.includes("youtube") || q.includes("গান") || q.includes("music") || q.includes("song")) {
       return {
-        text: "ইউটিউবে আপনার পছন্দের গান চালু করছি। রিল্যাক্স করুন!",
+        text: "ইউটিউবে তোমার পছন্দের গান চালাইয়া দিরাম, রিল্যাক্স করো!",
         emotion: "flirty",
         action: {
           id: `act_${Date.now()}`,
@@ -738,7 +771,7 @@ VOICE & LIVE AUDIO RULES:
     }
 
     return {
-      text: "আমি জয়া, আপনার পার্সোনাল অ্যান্ড্রয়েড ডিভাইস কন্ট্রোল অ্যাসিস্ট্যান্ট। কী ওপেন বা কন্ট্রোল করতে চান বলুন!",
+      text: "আরে মুক্তাদির! খিতা খবর কও? আমি জয়া, কাছাড়ের খাঁটি ভাষায় তোমারে সাহায্য করতে হাজির আছি। খিতা করমু কও!",
       emotion: "witty"
     };
   }
@@ -753,7 +786,7 @@ VOICE & LIVE AUDIO RULES:
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('{*path}', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

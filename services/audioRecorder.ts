@@ -54,7 +54,12 @@ export class AudioRecorder {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-        },
+          // Enhanced vendor flags for background noise reduction
+          googEchoCancellation: true,
+          googAutoGainControl: true,
+          googNoiseSuppression: true,
+          googHighpassFilter: true,
+        } as any,
       });
 
       // Handle bluetooth or headset disconnects
@@ -73,9 +78,14 @@ export class AudioRecorder {
       this.micSource = this.inputAudioCtx.createMediaStreamSource(this.micStream);
       this.processor = this.inputAudioCtx.createScriptProcessor(4096, 1, 1);
 
+      // Create a 0-gain mute node so that raw microphone audio NEVER loops back or plays as background noise/static to speakers
+      const muteGain = this.inputAudioCtx.createGain();
+      muteGain.gain.value = 0;
+
       this.micSource.connect(this.analyserNode);
       this.micSource.connect(this.processor);
-      this.processor.connect(this.inputAudioCtx.destination);
+      this.processor.connect(muteGain);
+      muteGain.connect(this.inputAudioCtx.destination);
 
       // Reset calibration state
       this.calibrationFramesCount = 0;
@@ -85,6 +95,11 @@ export class AudioRecorder {
       this.silenceFramesCount = 0;
 
       this.processor.onaudioprocess = (e) => {
+        // Explicitly clear all output channels to guarantee 0 audio noise playback to speakers/headphones
+        for (let ch = 0; ch < e.outputBuffer.numberOfChannels; ch++) {
+          e.outputBuffer.getChannelData(ch).fill(0);
+        }
+
         if (!this.isRecording || this.isMuted) return;
 
         const inputData = e.inputBuffer.getChannelData(0);
@@ -139,8 +154,18 @@ export class AudioRecorder {
       this.silenceFramesCount = 0;
       return true;
     } catch (err: any) {
-      console.error('AudioRecorder failed to start:', err);
-      this.onError?.(err?.message || 'Microphone access denied or unavailable.');
+      const isDenied =
+        err?.name === 'NotAllowedError' ||
+        err?.name === 'PermissionDeniedError' ||
+        err?.message?.includes('Permission denied') ||
+        err?.message?.includes('not allowed');
+
+      const message = isDenied
+        ? 'Microphone permission denied. Please allow microphone access in your browser settings.'
+        : (err?.message || 'Microphone access denied or unavailable.');
+
+      console.warn('AudioRecorder:', message);
+      this.onError?.(message);
       this.stop();
       return false;
     }

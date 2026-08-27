@@ -126,6 +126,17 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
                       </div>
                     )}
 
+                    {/* Image Attachment (Screenshot or Photo) */}
+                    {msg.image && (
+                      <div className="mb-2 rounded-xl overflow-hidden border border-slate-700/80 bg-black/40">
+                        <img
+                          src={msg.image}
+                          alt="Attached Screenshot or Snapshot"
+                          className="max-h-48 w-full object-contain"
+                        />
+                      </div>
+                    )}
+
                     <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
 
                     {/* Action button if attached */}

@@ -9,7 +9,11 @@ export interface ChatResponse {
 }
 
 export class GeminiClient {
-  public static async sendMessage(message: string, history: ChatMessage[] = []): Promise<ChatResponse> {
+  public static async sendMessage(
+    message: string,
+    history: ChatMessage[] = [],
+    image?: string
+  ): Promise<ChatResponse> {
     try {
       const memoryContext = memoryService.getContextSummary();
       const response = await fetch('/api/chat', {
@@ -19,6 +23,7 @@ export class GeminiClient {
         },
         body: JSON.stringify({
           message,
+          image,
           memoryContext,
           history: history.slice(-6).map(m => ({ sender: m.sender, text: m.text }))
         }),

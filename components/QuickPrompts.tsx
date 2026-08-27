@@ -25,64 +25,40 @@ export const QuickPrompts: React.FC<QuickPromptsProps> = ({
 }) => {
   const prompts = [
     {
-      label: '💻 Termux খোলো',
-      text: 'Termux খোলো',
-      icon: <Terminal className="w-3.5 h-3.5 text-emerald-400" />,
-      color: 'hover:border-emerald-500/50 hover:bg-emerald-950/40 text-emerald-300',
-    },
-    {
-      label: '⚡ এই কমান্ডটা Termux-এ চালাও',
-      text: 'এই কমান্ডটা Termux-এ চালাও: termux-battery-status',
-      icon: <Terminal className="w-3.5 h-3.5 text-emerald-400" />,
-      color: 'hover:border-emerald-500/50 hover:bg-emerald-950/40 text-emerald-300',
-    },
-    {
-      label: '👁️ স্ক্রিনে যা আছে সেটা পড়ে শোনাও',
-      text: 'স্ক্রিনে যা আছে সেটা পড়ে শোনাও',
-      icon: <Scan className="w-3.5 h-3.5 text-cyan-400" />,
-      color: 'hover:border-cyan-500/50 hover:bg-cyan-950/40 text-cyan-300',
-    },
-    {
-      label: '🤖 অ্যাপের ভিতর নির্দেশ অনুযায়ী কাজ করো',
-      text: 'এই অ্যাপের ভিতরে আমার নির্দেশ অনুযায়ী কাজ করো',
-      icon: <MousePointer className="w-3.5 h-3.5 text-pink-400" />,
-      color: 'hover:border-pink-500/50 hover:bg-pink-950/40 text-pink-300',
-    },
-    {
-      label: '📁 ফাইলটা খুঁজে দাও',
-      text: 'আমার ফাইলটা খুঁজে দাও (Project_Zoya)',
-      icon: <Folder className="w-3.5 h-3.5 text-indigo-400" />,
-      color: 'hover:border-indigo-500/50 hover:bg-indigo-950/40 text-indigo-300',
-    },
-    {
-      label: '💬 WhatsApp মেসেজ',
-      text: 'রহমান ভাইকে হোয়াটসঅ্যাপে মেসেজ পাঠাও যে আমি ৫ মিনিটে আসছি',
-      icon: <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />,
-      color: 'hover:border-emerald-500/50 hover:bg-emerald-950/40 text-emerald-300',
-    },
-    {
-      label: '✉️ Gmail ইমেইল',
-      text: 'তানভীরকে জিমেইলে প্রজেক্ট আপডেট পাঠিয়ে দাও',
-      icon: <Mail className="w-3.5 h-3.5 text-rose-400" />,
-      color: 'hover:border-rose-500/50 hover:bg-rose-950/40 text-rose-300',
-    },
-    {
-      label: '🗺️ Google Maps রুট',
-      text: 'গুগল ম্যাপসে ধানমন্ডি লেক যাওয়ার রাস্তা এবং ট্রাফিক দেখাও',
-      icon: <MapPin className="w-3.5 h-3.5 text-blue-400" />,
-      color: 'hover:border-blue-500/50 hover:bg-blue-950/40 text-blue-300',
-    },
-    {
-      label: '🎬 YouTube গান',
-      text: 'ইউটিউবে বাংলা লো-ফাই গান বাজাও',
+      label: '🎬 YouTube গান বাজা',
+      text: 'ইউটিউবে সুন্দর বাংলা গান চালাইয়া দেও',
       icon: <Play className="w-3.5 h-3.5 text-red-400 fill-red-400" />,
       color: 'hover:border-red-500/50 hover:bg-red-950/40 text-red-300',
     },
     {
       label: '🔥 রোস্ট মুকতাদির',
-      text: 'মুকতাদিরকে নিয়ে একটা মজার রোস্ট শোনাও',
+      text: 'মুকতাদিররে লইয়া একটা মজার রোস্ট শুনাও তো',
       icon: <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />,
       color: 'hover:border-amber-500/50 hover:bg-amber-950/40 text-amber-300',
+    },
+    {
+      label: '💻 Termux খোল',
+      text: 'Termux খুলিয়া দেও',
+      icon: <Terminal className="w-3.5 h-3.5 text-emerald-400" />,
+      color: 'hover:border-emerald-500/50 hover:bg-emerald-950/40 text-emerald-300',
+    },
+    {
+      label: '💬 WhatsApp মেসেজ',
+      text: 'রহমান ভাইরে হোয়াটসঅ্যাপে মেসেজ পাঠাই দেও যে আমি ৫ মিনিটে আইরাম',
+      icon: <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />,
+      color: 'hover:border-emerald-500/50 hover:bg-emerald-950/40 text-emerald-300',
+    },
+    {
+      label: '🗺️ Maps রাস্তা দেখাও',
+      text: 'শিলচর মেডিকেল কলেজ যাওয়ার রাস্তা আর ম্যাপ দেখাও',
+      icon: <MapPin className="w-3.5 h-3.5 text-blue-400" />,
+      color: 'hover:border-blue-500/50 hover:bg-blue-950/40 text-blue-300',
+    },
+    {
+      label: '👁️ স্ক্রিন পড়িয়া শুনাও',
+      text: 'স্ক্রিনে যা আছে তা একটু পড়িয়া শুনাও',
+      icon: <Scan className="w-3.5 h-3.5 text-cyan-400" />,
+      color: 'hover:border-cyan-500/50 hover:bg-cyan-950/40 text-cyan-300',
     },
   ];
 
